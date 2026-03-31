@@ -3,208 +3,421 @@ from pathlib import Path
 from copy import copy
 import re
 import traceback
+import zipfile
 
 import pandas as pd
 import streamlit as st
 from openpyxl import load_workbook
 
-st.set_page_config(page_title="KRILL → THOTH (PRO)", page_icon="📦", layout="wide")
+try:
+    import pdfplumber
+except ImportError:
+    pdfplumber = None
+
+
+st.set_page_config(page_title="BRASÃO / KROSS → THOTH (PRO)", page_icon="📦", layout="wide")
 
 BASE_DIR = Path(__file__).resolve().parent
 IGNORE_NAMES = {"", "TOTAL", "TOTAIS", "SUBTOTAL", "SUB-TOTAL", "PRODUTO", "PRODUTOS"}
+
+MODEL_BRASAO_FRUTAS = BASE_DIR / "BRASAO FRUTAS BRANCO.xlsx"
+MODEL_BRASAO_LEGUMES = BASE_DIR / "BRASAO LEGUMES BRANCO.xlsx"
+MODEL_KROSS_FRUTAS = BASE_DIR / "KROSS - PRÉ PEDIDO FRUTAS BRANCO.xlsx"
+MODEL_KROSS_LEGUMES = BASE_DIR / "KROSS - LEGUMES PRE PEDIDO BRANCO.xlsx"
+MODEL_BRASAO_CD_FRUTAS = BASE_DIR / "BRASAO CD - PRE PEDIDO FRUTAS branco.xlsx"
+MODEL_BRASAO_CD_LEGUMES = BASE_DIR / "BRASAO CD - PRE PEDIDO LEGUMES branco.xlsx"
+
+STORE_RULES = [
+    {
+        "store_id": "BRASAO_FERNANDO",
+        "group": "BRASAO",
+        "col_key": "1",
+        "display": "Brasão Fernando",
+        "signals": ["FERNANDO MACHADO", "CENTRO", "226"],
+    },
+    {
+        "store_id": "BRASAO_JARDIM",
+        "group": "BRASAO",
+        "col_key": "2",
+        "display": "Brasão Jardim",
+        "signals": ["SAO PEDRO", "JARDIM AMERICA", "2199"],
+    },
+    {
+        "store_id": "BRASAO_XAXIM",
+        "group": "BRASAO",
+        "col_key": "3",
+        "display": "Brasão Xaxim",
+        "signals": ["LUIZ LUNARDI", "XAXIM", "810"],
+    },
+    {
+        "store_id": "BRASAO_AVENIDA",
+        "group": "BRASAO",
+        "col_key": "4",
+        "display": "Brasão Avenida",
+        "signals": ["RIO DE JANEIRO", "CENTRO", "108", "CHAPECO"],
+    },
+    {
+        "store_id": "BRASAO_CD",
+        "group": "BRASAO_CD",
+        "col_key": "CD",
+        "display": "Brasão CD",
+        "signals": ["RUA GASPAR", "ELDORADO", "153"],
+    },
+    {
+        "store_id": "KROSS_CHAPECO",
+        "group": "KROSS",
+        "col_key": "1",
+        "display": "Kross Atacadista",
+        "signals": ["JOHN KENNEDY", "PASSO DOS FORTES", "550"],
+    },
+    {
+        "store_id": "KROSS_XAXIM",
+        "group": "KROSS",
+        "col_key": "2",
+        "display": "Kross Xaxim",
+        "signals": ["AMELIO PANIZZI", "XAXIM"],
+    },
+]
+
+ORDER_STOP_MARKERS = [
+    "AGENDAR A ENTREGA",
+    "PENDENCIAS DE MERCADORIAS",
+    "TOTAL DO FORNECEDOR",
+    "CONTATOS DO FORNECEDOR",
+    "COMPRADOR",
+    "TOTAIS",
+    "VALOR TOTAL",
+    "PESO TOTAL",
+    "ORIG DEST TP CODIGO",
+]
+
+UNIT_PATTERNS = [
+    (r"\bBDJ\b", "BDJ"),
+    (r"\bBANDEJA\b", "BDJ"),
+    (r"\bMACO\b", "UND"),
+    (r"\bUNIDADE\b", "UND"),
+    (r"\bUND\b", "UND"),
+    (r"\bKG\b", "KG"),
+]
+
 
 def norm_text(v):
     if v is None:
         return ""
     t = str(v).strip()
-    if t.lower() == "nan":
+    if t.lower() in {"nan", "none"}:
         return ""
     return " ".join(t.split())
 
+
 def norm_key(v):
-    return re.sub(r"\s+", " ", norm_text(v).upper())
+    txt = norm_text(v).upper()
+    txt = txt.replace("Á", "A").replace("À", "A").replace("Ã", "A").replace("Â", "A")
+    txt = txt.replace("É", "E").replace("Ê", "E")
+    txt = txt.replace("Í", "I")
+    txt = txt.replace("Ó", "O").replace("Õ", "O").replace("Ô", "O")
+    txt = txt.replace("Ú", "U")
+    txt = txt.replace("Ç", "C")
+    return re.sub(r"\s+", " ", txt).strip()
 
-def resolve_model_path(filename: str) -> Path:
-    candidates = [
-        BASE_DIR / filename,
-        BASE_DIR / "models" / filename,
-    ]
-    for path in candidates:
-        if path.exists():
-            return path
-    return BASE_DIR / filename
 
-MODEL_FRUTAS = resolve_model_path("KRILL_FRUTAS_Branco (1).xlsx")
-MODEL_LEGUMES = resolve_model_path("KRILL_LEGUMES_Branco (1).xlsx")
-
-def find_header_row(raw: pd.DataFrame) -> int:
-    for i in range(len(raw)):
-        row = [norm_key(x) for x in raw.iloc[i].tolist()]
-        has_loja = "LOJA" in row
-        has_produto = ("DESCRIÇÃO DO PRODUTO" in row or "DESCRICAO DO PRODUTO" in row or "PRODUTO" in row)
-        has_qtde = ("QTDE." in row or "QTDE" in row or "QUANTIDADE" in row)
-
-        if has_loja and has_produto and has_qtde:
-            return i
-
-    raise ValueError("Não encontrei o cabeçalho do pedido. Precisa existir Loja, Descrição do Produto e Qtde.")
-
-def parse_price_series(series: pd.Series) -> pd.Series:
-    if pd.api.types.is_numeric_dtype(series):
-        return pd.to_numeric(series, errors="coerce")
-
-    s = series.astype(str).str.strip()
-    s = s.replace({"": None, "nan": None, "None": None})
-
-    def convert(v):
-        if v is None or pd.isna(v):
-            return None
-        txt = str(v).strip()
-        if txt == "":
-            return None
-        if "," in txt and "." in txt:
-            txt = txt.replace(".", "").replace(",", ".")
-        elif "," in txt:
-            txt = txt.replace(",", ".")
-        try:
-            return float(txt)
-        except Exception:
-            return None
-
-    return s.map(convert)
-
-def read_order(file):
-    file_buffer = BytesIO(file.getvalue())
-    raw = pd.read_excel(file_buffer, header=None)
-    header_row = find_header_row(raw)
-    
-    row_vals = raw.iloc[header_row].tolist()
-    norm_row = [norm_key(x) for x in row_vals]
-    
-    def find_idx(keywords_list, avoid_list=[]):
-        for keywords in keywords_list:
-            for i, val in enumerate(norm_row):
-                if all(kw in val for kw in keywords):
-                    if any(avoid in val for avoid in avoid_list):
-                        continue
-                    return i
+def parse_number(v):
+    if v is None:
+        return None
+    txt = norm_text(v)
+    if not txt:
+        return None
+    txt = txt.replace(".", "").replace(",", ".")
+    txt = re.sub(r"[^0-9.-]", "", txt)
+    if txt in {"", ".", "-", "-."}:
+        return None
+    try:
+        return float(txt)
+    except Exception:
         return None
 
-    idx_loja = find_idx([["LOJA"]])
-    idx_produto = find_idx([["DESCRIÇÃO DO PRODUTO"], ["DESCRICAO DO PRODUTO"], ["PRODUTO"]], avoid_list=["REF", "CODIGO"])
-    idx_qtde = find_idx([["QTDE.", "PEDIDA"], ["QTDE", "PEDIDA"], ["QTDE."], ["QTDE"], ["QUANTIDADE"]])
-    
-    idx_codigo = find_idx([
-        ["REF", "FORN"], ["REFERENCIA", "FORN"], ["REFERÊNCIA", "FORN"], 
-        ["REF"]
-    ], avoid_list=["BARRAS", "EAN", "GTIN", "SKU"])
-    
-    idx_preco = find_idx([
-        ["CUSTO", "UN"], ["CUSTO"], ["PRECO", "UNIT"], ["PREÇO", "UNIT"], ["VALOR", "UNIT"]
-    ], avoid_list=["TOTAL", "BARRAS", "EAN", "GTIN", "VENDA", "CX"])
-    
-    if idx_loja is None or idx_produto is None or idx_qtde is None:
-        raise ValueError("Erro fatal: As colunas obrigatórias (Loja, Produto, Qtde) desapareceram.")
 
-    df_raw = raw.iloc[header_row + 1:].copy()
-    clean_df = pd.DataFrame()
-    clean_df["Loja"] = df_raw.iloc[:, idx_loja].copy()
-    clean_df["Descrição do Produto"] = df_raw.iloc[:, idx_produto].copy()
-    clean_df["Qtde."] = df_raw.iloc[:, idx_qtde].copy()
-    
-    if idx_codigo is not None:
-        clean_df["CodigoPedido"] = df_raw.iloc[:, idx_codigo].copy()
-    else:
-        clean_df["CodigoPedido"] = ""
-        
-    if idx_preco is not None:
-        clean_df["PrecoPedido"] = df_raw.iloc[:, idx_preco].copy()
-    else:
-        clean_df["PrecoPedido"] = None
+def ceil_div(qtd, base):
+    if qtd is None or base in (None, 0):
+        return 0
+    return int(-(-qtd // base))
 
-    clean_df["Loja"] = clean_df["Loja"].map(norm_text)
-    clean_df["Descrição do Produto"] = clean_df["Descrição do Produto"].map(norm_text)
-    clean_df["Qtde."] = pd.to_numeric(clean_df["Qtde."], errors="coerce").fillna(0)
-    
-    if idx_codigo is not None:
-        clean_df["CodigoPedido"] = clean_df["CodigoPedido"].astype(str).str.replace(".0", "", regex=False).str.strip()
-        clean_df["CodigoPedido"] = clean_df["CodigoPedido"].replace("nan", "")
 
-    if idx_preco is not None:
-        clean_df["PrecoPedido"] = parse_price_series(clean_df["PrecoPedido"])
+def resolve_model_path(path_obj: Path) -> Path:
+    candidates = [path_obj, BASE_DIR / "models" / path_obj.name]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return path_obj
 
-    clean_df = clean_df[clean_df["Descrição do Produto"] != ""]
-    clean_df = clean_df[~clean_df["Descrição do Produto"].map(norm_key).isin(IGNORE_NAMES)]
-    clean_df = clean_df[clean_df["Loja"].str.fullmatch(r"\d+")]
-    clean_df = clean_df[clean_df["Loja"] != "0"]
-    clean_df = clean_df[clean_df["Qtde."] > 0]
 
-    if clean_df.empty:
-        raise ValueError("Nenhum item válido foi encontrado no pedido.")
+MODEL_BRASAO_FRUTAS = resolve_model_path(MODEL_BRASAO_FRUTAS)
+MODEL_BRASAO_LEGUMES = resolve_model_path(MODEL_BRASAO_LEGUMES)
+MODEL_KROSS_FRUTAS = resolve_model_path(MODEL_KROSS_FRUTAS)
+MODEL_KROSS_LEGUMES = resolve_model_path(MODEL_KROSS_LEGUMES)
+MODEL_BRASAO_CD_FRUTAS = resolve_model_path(MODEL_BRASAO_CD_FRUTAS)
+MODEL_BRASAO_CD_LEGUMES = resolve_model_path(MODEL_BRASAO_CD_LEGUMES)
 
-    debug_info = {
-        "col_loja": str(row_vals[idx_loja]) if idx_loja is not None else "ERRO",
-        "col_produto": str(row_vals[idx_produto]) if idx_produto is not None else "ERRO",
-        "col_qtde": str(row_vals[idx_qtde]) if idx_qtde is not None else "ERRO",
-        "col_codigo": str(row_vals[idx_codigo]) if idx_codigo is not None else "NÃO ACHOU COLUNA REF",
-        "col_preco": str(row_vals[idx_preco]) if idx_preco is not None else "NÃO ACHOU COLUNA CUSTO",
-    }
-    return clean_df, debug_info
 
-def build_pivot(df: pd.DataFrame) -> pd.DataFrame:
-    pivot = df.pivot_table(index="Descrição do Produto", columns="Loja", values="Qtde.", aggfunc="sum", fill_value=0)
-    cols = sorted([str(c) for c in pivot.columns], key=lambda x: int(x))
-    pivot.columns = [str(c) for c in pivot.columns]
-    return pivot.reindex(cols, axis=1)
+@st.cache_data(show_spinner=False)
+def load_base(base_file_bytes: bytes, filename: str) -> pd.DataFrame:
+    file_buffer = BytesIO(base_file_bytes)
+    wb = pd.ExcelFile(file_buffer)
+    df = pd.read_excel(file_buffer, sheet_name=wb.sheet_names[0])
+    cols_map = {}
+    for c in df.columns:
+        key = norm_key(c)
+        cols_map[c] = key
 
-def extract_store_number(v1, v2):
-    c1 = norm_key(v1)
-    c2 = norm_key(v2)
-    for txt in (c1, c2):
-        m = re.search(r"\bKRILL\s*(\d+)\b", txt)
-        if m: return m.group(1)
-    for txt in (c2, c1):
-        if re.fullmatch(r"\d+", txt): return txt
-    for txt in (c1, c2):
-        numbers = re.findall(r"\d+", txt)
-        if numbers: return numbers[0]
+    def pick(col_options, required=False):
+        for original, key in cols_map.items():
+            if key in col_options:
+                return original
+        if required:
+            raise ValueError(f"Coluna obrigatória não encontrada na base: {col_options}")
+        return None
+
+    col_categoria = pick({"CATEGORIA"}, required=True)
+    col_produto = pick({"PRODUTO_BASE", "PRODUTO", "ITEM", "DESCRICAO", "DESCRICAO BASE"}, required=True)
+    col_sinonimos = pick({"SINONIMOS", "SINONIMO", "APELIDOS"})
+    col_codigo = pick({"CODIGO", "COD", "COD ITEM"})
+    col_cod_forn = pick({"COD FORN", "COD_FORN", "CODFORN", "CODIGO FORNECEDOR"})
+    col_modo = pick({"MODO_CONVERSAO", "MODO CONVERSAO", "MODO"})
+    col_peso = pick({"PESO_CAIXA", "PESO CAIXA", "KG POR CAIXA"})
+    col_itens = pick({"ITENS_POR_CAIXA", "ITENS POR CAIXA", "UN POR CAIXA", "UND POR CAIXA"})
+    col_bdj = pick({"BANDEJAS_POR_CAIXA", "BANDEJAS POR CAIXA", "BDJ POR CAIXA"})
+
+    rows = []
+    for _, r in df.iterrows():
+        produto = norm_text(r.get(col_produto))
+        if not produto:
+            continue
+
+        sinonimos_raw = norm_text(r.get(col_sinonimos)) if col_sinonimos else ""
+        sinonimos = []
+        if sinonimos_raw:
+            for part in re.split(r"[|;]", sinonimos_raw):
+                p = norm_text(part)
+                if p:
+                    sinonimos.append(p)
+
+        rows.append({
+            "categoria": norm_key(r.get(col_categoria)),
+            "produto_base": produto,
+            "produto_key": norm_key(produto),
+            "sinonimos": sinonimos,
+            "sinonimos_key": [norm_key(x) for x in sinonimos],
+            "codigo": norm_text(r.get(col_codigo)) if col_codigo else "",
+            "cod_forn": norm_text(r.get(col_cod_forn)) if col_cod_forn else "",
+            "modo": norm_key(r.get(col_modo)) if col_modo else "",
+            "peso_caixa": parse_number(r.get(col_peso)) if col_peso else None,
+            "itens_por_caixa": parse_number(r.get(col_itens)) if col_itens else None,
+            "bandejas_por_caixa": parse_number(r.get(col_bdj)) if col_bdj else None,
+        })
+
+    base_df = pd.DataFrame(rows)
+    if base_df.empty:
+        raise ValueError("A base de produtos está vazia.")
+    return base_df
+
+
+@st.cache_data(show_spinner=False)
+def pdf_to_text(file_bytes: bytes) -> str:
+    if pdfplumber is None:
+        raise RuntimeError("Falta instalar pdfplumber no ambiente. Adicione em requisitos.txt")
+
+    all_text = []
+    with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+        for page in pdf.pages:
+            txt = page.extract_text() or ""
+            all_text.append(txt)
+    return "\n".join(all_text)
+
+
+def identify_store(pdf_text: str):
+    text = norm_key(pdf_text)
+    for rule in STORE_RULES:
+        if all(signal in text for signal in rule["signals"]):
+            return rule
+    raise ValueError("Não consegui identificar a loja/unidade pelo cabeçalho do PDF.")
+
+
+def detect_unit(desc: str) -> str:
+    key = norm_key(desc)
+    for pattern, unit in UNIT_PATTERNS:
+        if re.search(pattern, key):
+            return unit
+    return "CX"
+
+
+def clean_desc(desc: str) -> str:
+    text = norm_text(desc)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def is_stop_line(line: str) -> bool:
+    key = norm_key(line)
+    return any(marker in key for marker in ORDER_STOP_MARKERS)
+
+
+def parse_order_items(pdf_text: str) -> pd.DataFrame:
+    lines = [norm_text(x) for x in pdf_text.splitlines() if norm_text(x)]
+    item_lines = []
+    start_collecting = False
+
+    row_pattern = re.compile(
+        r"^(?P<codigo>\d[\d.,]*)\s+"
+        r"(?P<cod_forn>[\d,./-]+)\s+"
+        r"(?P<descricao>.+?)\s+"
+        r"(?P<quant>\d+[\d.,]*)\s+"
+        r"(?P<qtde_emb>\d+[\d.,]*)\s+"
+        r"(?P<pr_unit>\d+[\d.,]*)\s+"
+        r"(?P<vl_total>\d+[\d.,]*)$"
+    )
+
+    for line in lines:
+        key = norm_key(line)
+        if "CODIGO COD FORN DESCRICAO" in key or "CODIGO COD FORN DESCRI" in key:
+            start_collecting = True
+            continue
+
+        if not start_collecting:
+            continue
+
+        if is_stop_line(line):
+            break
+
+        match = row_pattern.match(line)
+        if not match:
+            continue
+
+        descricao = clean_desc(match.group("descricao"))
+        item_lines.append({
+            "CodigoPedido": norm_text(match.group("codigo")),
+            "CodFornPedido": norm_text(match.group("cod_forn")),
+            "DescricaoOriginal": descricao,
+            "Qtde": parse_number(match.group("quant")) or 0,
+            "QtdeEmb": parse_number(match.group("qtde_emb")) or 0,
+            "PrecoPedido": parse_number(match.group("pr_unit")),
+            "ValorTotal": parse_number(match.group("vl_total")),
+            "UnidadeDetectada": detect_unit(descricao),
+        })
+
+    df = pd.DataFrame(item_lines)
+    if df.empty:
+        raise ValueError("Nenhum item válido foi extraído do PDF. Verifique se o layout do pedido segue o padrão atual.")
+    return df
+
+
+def match_base_item(desc: str, base_df: pd.DataFrame):
+    key = norm_key(desc)
+
+    exact = base_df[base_df["produto_key"] == key]
+    if not exact.empty:
+        return exact.iloc[0]
+
+    for _, row in base_df.iterrows():
+        if key in row["sinonimos_key"]:
+            return row
+
+    contains = base_df[base_df["produto_key"].apply(lambda x: x in key or key in x)]
+    if not contains.empty:
+        contains = contains.assign(_len=contains["produto_key"].map(len)).sort_values("_len", ascending=False)
+        return contains.iloc[0]
+
     return None
 
-def model_map(ws):
-    store_to_col = {}
-    total_col = None
-    cd_col = None
-    for col in range(2, ws.max_column + 1):
-        line1 = ws.cell(1, col).value
-        line2 = ws.cell(2, col).value
-        top = norm_key(line1)
-        second = norm_key(line2)
-        if "TOTAL" in top or "TOTAL" in second:
-            total_col = col
-            continue
-        if "CD" in top or "CD" in second:
-            cd_col = col
-            continue
-        loja = extract_store_number(line1, line2)
-        if loja: store_to_col[loja] = col
 
-    if not store_to_col:
-        raise ValueError("Não consegui mapear as lojas no modelo.")
-    return store_to_col, total_col, cd_col
+def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
+    modo = norm_key(base_row.get("modo", ""))
+    unit = norm_key(unit)
+
+    if modo == "CAIXA" or unit == "CX":
+        return int(qtd)
+
+    if modo == "PESO" or unit == "KG":
+        return ceil_div(qtd, base_row.get("peso_caixa"))
+
+    if modo in {"UNIDADE", "UND"} or unit == "UND":
+        return ceil_div(qtd, base_row.get("itens_por_caixa"))
+
+    if modo in {"BANDEJA", "BDJ"} or unit == "BDJ":
+        return ceil_div(qtd, base_row.get("bandejas_por_caixa"))
+
+    if unit == "KG" and base_row.get("peso_caixa"):
+        return ceil_div(qtd, base_row.get("peso_caixa"))
+    if unit == "UND" and base_row.get("itens_por_caixa"):
+        return ceil_div(qtd, base_row.get("itens_por_caixa"))
+    if unit == "BDJ" and base_row.get("bandejas_por_caixa"):
+        return ceil_div(qtd, base_row.get("bandejas_por_caixa"))
+
+    return 0
+
+
+def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFrame):
+    out_rows = []
+    errors = []
+
+    for _, row in order_df.iterrows():
+        base_row = match_base_item(row["DescricaoOriginal"], base_df)
+        if base_row is None:
+            errors.append({
+                "loja": store_rule["display"],
+                "produto": row["DescricaoOriginal"],
+                "erro": "Produto não encontrado na base",
+            })
+            continue
+
+        caixas = convert_to_boxes(row["Qtde"], row["UnidadeDetectada"], base_row)
+        if caixas <= 0:
+            errors.append({
+                "loja": store_rule["display"],
+                "produto": row["DescricaoOriginal"],
+                "erro": f"Falha na conversão para caixa ({row['UnidadeDetectada']})",
+            })
+            continue
+
+        out_rows.append({
+            "Grupo": store_rule["group"],
+            "LojaKey": store_rule["col_key"],
+            "LojaNome": store_rule["display"],
+            "Categoria": norm_key(base_row["categoria"]),
+            "ProdutoModelo": base_row["produto_base"],
+            "ProdutoKey": base_row["produto_key"],
+            "Caixas": caixas,
+            "CodigoPedido": row["CodigoPedido"],
+            "CodFornPedido": row["CodFornPedido"],
+            "PrecoPedido": row["PrecoPedido"],
+        })
+
+    out_df = pd.DataFrame(out_rows)
+    errors_df = pd.DataFrame(errors)
+    return out_df, errors_df
+
+
+def group_to_matrix(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame()
+    p = df.pivot_table(index="ProdutoModelo", columns="LojaKey", values="Caixas", aggfunc="sum", fill_value=0)
+    p.columns = [str(c) for c in p.columns]
+    return p
+
 
 def product_rows(ws):
     rows = {}
     for row in range(3, ws.max_row + 1):
-        # CORREÇÃO: O produto fica na COLUNA A (1), e não na 2!
         prod = norm_text(ws.cell(row, 1).value)
         if prod and norm_key(prod) not in IGNORE_NAMES:
             rows[norm_key(prod)] = row
     return rows
 
-@st.cache_data
+
+@st.cache_data(show_spinner=False)
 def get_cached_product_rows(model_path_str: str):
     wb = load_workbook(model_path_str)
     return product_rows(wb.active)
+
 
 def copy_row_style(ws, src_row, dst_row):
     for col in range(1, ws.max_column + 1):
@@ -219,73 +432,112 @@ def copy_row_style(ws, src_row, dst_row):
         dst.protection = copy(src.protection)
 
 
-def split_by_models(pivot, frutas_rows, legumes_rows):
-    frutas_idx, legumes_idx = [], []
-    frutas_keys = set(frutas_rows.keys())
-    
-    for prod in pivot.index.tolist():
-        key = norm_key(prod)
-        if key in frutas_keys: 
-            frutas_idx.append(prod)
-        else: 
-            # Se não estiver no modelo de FRUTAS, vai para LEGUMES (incluindo as novidades)
-            legumes_idx.append(prod)
+def extract_store_number_from_model(v1, v2):
+    c1 = norm_key(v1)
+    c2 = norm_key(v2)
+    combo = f"{c1} {c2}"
 
-    empty = pivot.iloc[0:0].copy()
-    frutas = pivot.loc[frutas_idx].copy() if frutas_idx else empty.copy()
-    legumes = pivot.loc[legumes_idx].copy() if legumes_idx else empty.copy()
-    
-    return frutas, legumes
+    if "LOJA 1" in combo or re.fullmatch(r"1", c2):
+        return "1"
+    if "LOJA 2" in combo or re.fullmatch(r"2", c2):
+        return "2"
+    if "LOJA 3" in combo or re.fullmatch(r"3", c2):
+        return "3"
+    if "LOJA 4" in combo or re.fullmatch(r"4", c2):
+        return "4"
+    return None
 
-def write_output(model_path: Path, data: pd.DataFrame) -> bytes:
+
+def model_map(ws):
+    store_to_col = {}
+    total_col = None
+    for col in range(2, ws.max_column + 1):
+        line1 = ws.cell(1, col).value
+        line2 = ws.cell(2, col).value
+        top = norm_key(line1)
+        second = norm_key(line2)
+
+        if "TOTAL" in top or "TOTAL" in second:
+            total_col = col
+            continue
+
+        key = extract_store_number_from_model(line1, line2)
+        if key:
+            store_to_col[key] = col
+
+    return store_to_col, total_col
+
+
+def model_map_kross(ws):
+    store_to_col = {}
+    total_col = None
+    for col in range(2, ws.max_column + 1):
+        line1 = norm_key(ws.cell(1, col).value)
+        line2 = norm_key(ws.cell(2, col).value)
+        combo = f"{line1} {line2}"
+
+        if "TOTAL" in combo:
+            total_col = col
+            continue
+        if "ATACADISTA" in combo or re.fullmatch(r"1", line2):
+            store_to_col["1"] = col
+        elif "XAXIM" in combo or re.fullmatch(r"2", line2):
+            store_to_col["2"] = col
+
+    return store_to_col, total_col
+
+
+def write_output(model_path: Path, data: pd.DataFrame, model_type: str) -> bytes:
     wb = load_workbook(str(model_path))
     ws = wb.active
-    stores, total_col, cd_col = model_map(ws)
+
+    if model_type == "KROSS":
+        stores, total_col = model_map_kross(ws)
+    else:
+        stores, total_col = model_map(ws)
+
     prod_map = product_rows(ws)
-    
+
     cols_to_clear = list(stores.values())
-    if total_col: cols_to_clear.append(total_col)
-    if cd_col: cols_to_clear.append(cd_col)
-    
-    # 1. Limpa todas as quantidades das lojas
+    if total_col:
+        cols_to_clear.append(total_col)
+
     for row in range(3, ws.max_row + 1):
-        # CORREÇÃO: Lendo Coluna A (1)
         if norm_text(ws.cell(row, 1).value):
-            for col in cols_to_clear: ws.cell(row, col).value = None
+            for col in cols_to_clear:
+                ws.cell(row, col).value = None
 
     used = set()
 
-    # 2. Preenche quantidades dos itens conhecidos
     for prod in data.index.tolist():
         key = norm_key(prod)
-        if key not in prod_map: continue
-        
+        if key not in prod_map:
+            continue
+
         row = prod_map[key]
         used.add(key)
         row_total = 0
-        
+
         for loja in data.columns:
             if loja in stores:
                 val = float(data.loc[prod, loja])
                 if val:
                     ws.cell(row, stores[loja]).value = val
                     row_total += val
-                    
-        if total_col: ws.cell(row, total_col).value = row_total if row_total else None
-        if cd_col: ws.cell(row, cd_col).value = None
 
-    # 3. Adiciona itens novos ESCREVENDO o nome na Coluna A
+        if total_col:
+            ws.cell(row, total_col).value = row_total if row_total else None
+
     missing = [prod for prod in data.index.tolist() if norm_key(prod) not in used]
     if missing:
         last_filled = max(prod_map.values()) if prod_map else 3
         style_row = last_filled
         current_row = last_filled + 1
-        
+
         for prod in missing:
             copy_row_style(ws, style_row, current_row)
-            # CORREÇÃO: Escreve o produto novo na Coluna A (1)
-            ws.cell(current_row, 1).value = prod 
-            
+            ws.cell(current_row, 1).value = prod
+
             row_total = 0
             for loja in data.columns:
                 if loja in stores:
@@ -293,149 +545,208 @@ def write_output(model_path: Path, data: pd.DataFrame) -> bytes:
                     if val:
                         ws.cell(current_row, stores[loja]).value = val
                         row_total += val
-                        
-            if total_col: ws.cell(current_row, total_col).value = row_total if row_total else None
-            if cd_col: ws.cell(current_row, cd_col).value = None
-            current_row += 1
 
-    # 4. Apaga linhas do modelo que não tiveram pedido
-    max_row = ws.max_row
-    for r in range(max_row, 2, -1):
-        # CORREÇÃO: Lendo Coluna A (1)
-        prod_val = norm_text(ws.cell(r, 1).value)
-        if prod_val:
-            key = norm_key(prod_val)
-            # Ignora as linhas de "TOTAL" para não apagá-las
-            if key in IGNORE_NAMES:
-                continue
-                
-            if key not in [norm_key(p) for p in data.index.tolist()]:
-                ws.delete_rows(r, 1)
+            if total_col:
+                ws.cell(current_row, total_col).value = row_total if row_total else None
+            current_row += 1
 
     out = BytesIO()
     wb.save(out)
     out.seek(0)
     return out.getvalue()
 
-def build_prices(frutas: pd.DataFrame, legumes: pd.DataFrame, order_df: pd.DataFrame) -> bytes:
-    base_precos = order_df[['Descrição do Produto', 'CodigoPedido', 'PrecoPedido']].copy().drop_duplicates(subset=['Descrição do Produto'])
-    base_precos['PRODUTO_KEY'] = base_precos['Descrição do Produto'].map(norm_key)
 
-    def make_df(df):
-        if df.empty:
-            return pd.DataFrame(columns=['CODIGO', 'PRODUTO', 'PRECO'])
-            
-        produtos = sorted(df.index.tolist(), key=lambda x: str(x).strip().upper())
-        linhas = []
-        for prod in produtos:
-            key = norm_key(prod)
-            achou = base_precos[base_precos['PRODUTO_KEY'] == key]
-            
-            if not achou.empty:
-                row = achou.iloc[0]
-                cod = str(row['CodigoPedido']).strip()
-                
-                # Prepara o código com a aspa simples invisível para o Excel não distorcer
-                if cod and cod.lower() != 'nan' and cod.lower() != 'none':
-                    cod_num = "".join(filter(str.isdigit, cod))
-                    cod_formatado = f"'{cod_num}" if cod_num else ""
-                else:
-                    cod_formatado = ""
+def build_prices_sheet(df: pd.DataFrame) -> bytes:
+    if df.empty:
+        out = BytesIO()
+        pd.DataFrame(columns=["CODIGO", "COD_FORN", "PRODUTO", "PRECO"]).to_excel(out, index=False)
+        out.seek(0)
+        return out.getvalue()
 
-                linhas.append({
-                    'CODIGO': cod_formatado, 
-                    'PRODUTO': prod, 
-                    'PRECO': row['PrecoPedido']
-                })
-            else:
-                linhas.append({'CODIGO': '', 'PRODUTO': prod, 'PRECO': ''})
-                
-        return pd.DataFrame(linhas)
+    base = df[["ProdutoModelo", "CodigoPedido", "CodFornPedido", "PrecoPedido"]].drop_duplicates(subset=["ProdutoModelo"])
+    base = base.sort_values("ProdutoModelo")
 
-    frutas_df = make_df(frutas)
-    legumes_df = make_df(legumes)
-    
+    rows = []
+    for _, r in base.iterrows():
+        codigo = norm_text(r["CodigoPedido"])
+        cod_num = "".join(filter(str.isdigit, codigo)) if codigo else ""
+        rows.append({
+            "CODIGO": f"'{cod_num}" if cod_num else "",
+            "COD_FORN": norm_text(r["CodFornPedido"]),
+            "PRODUTO": norm_text(r["ProdutoModelo"]),
+            "PRECO": r["PrecoPedido"],
+        })
+
     out = BytesIO()
-    with pd.ExcelWriter(out, engine='openpyxl') as writer:
-        frutas_df.to_excel(writer, sheet_name='FRUTAS', index=False)
-        legumes_df.to_excel(writer, sheet_name='LEGUMES', index=False)
-        
-        for sheet_name in ['FRUTAS', 'LEGUMES']:
-            worksheet = writer.sheets[sheet_name]
-            worksheet.column_dimensions['A'].width = 12
-            worksheet.column_dimensions['B'].width = 45
-            worksheet.column_dimensions['C'].width = 12
-            
+    with pd.ExcelWriter(out, engine="openpyxl") as writer:
+        pd.DataFrame(rows).to_excel(writer, sheet_name="PRECOS", index=False)
+        ws = writer.sheets["PRECOS"]
+        ws.column_dimensions["A"].width = 14
+        ws.column_dimensions["B"].width = 14
+        ws.column_dimensions["C"].width = 45
+        ws.column_dimensions["D"].width = 12
     out.seek(0)
     return out.getvalue()
 
 
-st.title("📦 KRILL → THOTH (PRO)")
-st.caption("Modelos fixos no sistema. Mapeamento por número da loja. KRILL CD sempre vazio.")
+def build_cd_workbook(frutas_matrix: pd.DataFrame, legumes_matrix: pd.DataFrame) -> bytes:
+    out = BytesIO()
+    with pd.ExcelWriter(out, engine="openpyxl") as writer:
+        (frutas_matrix if not frutas_matrix.empty else pd.DataFrame()).to_excel(writer, sheet_name="FRUTAS")
+        (legumes_matrix if not legumes_matrix.empty else pd.DataFrame()).to_excel(writer, sheet_name="LEGUMES")
+    out.seek(0)
+    return out.getvalue()
+
+
+def ensure_models():
+    missing = []
+    for path in [
+        MODEL_BRASAO_FRUTAS,
+        MODEL_BRASAO_LEGUMES,
+        MODEL_KROSS_FRUTAS,
+        MODEL_KROSS_LEGUMES,
+    ]:
+        if not path.exists():
+            missing.append(path.name)
+    if missing:
+        raise FileNotFoundError("Modelos não encontrados: " + ", ".join(missing))
+
+
+def build_zip(files_dict: dict) -> bytes:
+    out = BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, content in files_dict.items():
+            zf.writestr(name, content)
+    out.seek(0)
+    return out.getvalue()
+
+
+st.title("📦 BRASÃO / KROSS → THOTH (PRO)")
+st.caption("Upload múltiplo de PDFs. O app identifica a unidade pelo cabeçalho/endereço, converte para caixa e gera os arquivos finais.")
 
 with st.sidebar:
     st.subheader("Como usar")
-    st.write("1. Envie o pedido bruto da Krill.")
-    st.write("2. Clique em Processar.")
-    st.write("3. Baixe FRUTAS, LEGUMES e PREÇOS.")
-    st.info("A planilha de PREÇOS lê o Custo Un. e a Ref. Fornecedor direto do pedido da Krill.")
-    st.info("Regra: pedido loja X = coluna KRILL X.")
+    st.write("1. Envie a base normalizada de produtos.")
+    st.write("2. Envie todos os PDFs do dia.")
+    st.write("3. Clique em PROCESSAR.")
+    st.write("4. Baixe o ZIP com os arquivos finais.")
+    st.info("Fluxos suportados: Brasão lojas, Brasão CD e Kross.")
+    st.info("Brasão Fernando = Loja 1 | Jardim = Loja 2 | Xaxim = Loja 3 | Avenida = Loja 4.")
+    st.info("Kross Atacadista = Loja 1 | Kross Xaxim = Loja 2.")
 
-uploaded = st.file_uploader("Pedido Krill", type=["xlsx", "xls", "csv"])
+base_file = st.file_uploader("Base de produtos (Excel)", type=["xlsx", "xls", "csv"])
+pdf_files = st.file_uploader("Pedidos PDF", type=["pdf"], accept_multiple_files=True)
 
 if st.button("PROCESSAR", use_container_width=True, type="primary"):
-    if not uploaded:
-        st.error("Envie o pedido para continuar.")
+    if not base_file:
+        st.error("Envie a base de produtos para continuar.")
+    elif not pdf_files:
+        st.error("Envie ao menos um PDF.")
     else:
         try:
-            if not MODEL_FRUTAS.exists():
-                st.error(f"Modelo FRUTAS não encontrado: {MODEL_FRUTAS.name}.")
-                st.stop()
-            if not MODEL_LEGUMES.exists():
-                st.error(f"Modelo LEGUMES não encontrado: {MODEL_LEGUMES.name}.")
-                st.stop()
+            ensure_models()
+            base_df = load_base(base_file.getvalue(), base_file.name)
 
-            # Lê o seu arquivo original novinho em folha
-            order_df, debug_info = read_order(uploaded)
-            pivot = build_pivot(order_df)
+            transformed_parts = []
+            all_errors = []
+            identified = []
 
-            frutas_rows = get_cached_product_rows(str(MODEL_FRUTAS))
-            legumes_rows = get_cached_product_rows(str(MODEL_LEGUMES))
+            for pdf in pdf_files:
+                text = pdf_to_text(pdf.getvalue())
+                store_rule = identify_store(text)
+                order_df = parse_order_items(text)
+                transformed_df, errors_df = transform_items(order_df, store_rule, base_df)
 
-            # Separa os itens (Novidades como o Tomate vão para Legumes)
-            frutas_df, legumes_df = split_by_models(pivot, frutas_rows, legumes_rows)
+                if not transformed_df.empty:
+                    transformed_parts.append(transformed_df)
+                if not errors_df.empty:
+                    all_errors.append(errors_df)
 
-            frutas_file = write_output(MODEL_FRUTAS, frutas_df)
-            legumes_file = write_output(MODEL_LEGUMES, legumes_df)
-            
-            # Gera os preços puxando os dados do próprio arquivo submetido
-            prices_file = build_prices(frutas_df, legumes_df, order_df)
+                identified.append({
+                    "arquivo": pdf.name,
+                    "loja": store_rule["display"],
+                    "grupo": store_rule["group"],
+                    "itens_extraidos": len(order_df),
+                    "itens_convertidos": len(transformed_df),
+                })
+
+            if not transformed_parts:
+                raise ValueError("Nenhum item foi convertido. Verifique a base e os PDFs.")
+
+            all_data = pd.concat(transformed_parts, ignore_index=True)
+            errors_data = pd.concat(all_errors, ignore_index=True) if all_errors else pd.DataFrame(columns=["loja", "produto", "erro"])
+            identified_df = pd.DataFrame(identified)
+
+            brasao_df = all_data[all_data["Grupo"] == "BRASAO"].copy()
+            kross_df = all_data[all_data["Grupo"] == "KROSS"].copy()
+            cd_df = all_data[all_data["Grupo"] == "BRASAO_CD"].copy()
+
+            brasao_frutas = brasao_df[brasao_df["Categoria"] == "FRUTAS"]
+            brasao_legumes = brasao_df[brasao_df["Categoria"] == "LEGUMES"]
+            kross_frutas = kross_df[kross_df["Categoria"] == "FRUTAS"]
+            kross_legumes = kross_df[kross_df["Categoria"] == "LEGUMES"]
+            cd_frutas = cd_df[cd_df["Categoria"] == "FRUTAS"]
+            cd_legumes = cd_df[cd_df["Categoria"] == "LEGUMES"]
+
+            brasao_frutas_matrix = group_to_matrix(brasao_frutas)
+            brasao_legumes_matrix = group_to_matrix(brasao_legumes)
+            kross_frutas_matrix = group_to_matrix(kross_frutas)
+            kross_legumes_matrix = group_to_matrix(kross_legumes)
+            cd_frutas_matrix = group_to_matrix(cd_frutas)
+            cd_legumes_matrix = group_to_matrix(cd_legumes)
+
+            files_to_zip = {}
+
+            files_to_zip["BRASAO_FRUTAS_Thoth.xlsx"] = write_output(MODEL_BRASAO_FRUTAS, brasao_frutas_matrix, "BRASAO")
+            files_to_zip["BRASAO_LEGUMES_Thoth.xlsx"] = write_output(MODEL_BRASAO_LEGUMES, brasao_legumes_matrix, "BRASAO")
+            files_to_zip["KROSS_FRUTAS_Thoth.xlsx"] = write_output(MODEL_KROSS_FRUTAS, kross_frutas_matrix, "KROSS")
+            files_to_zip["KROSS_LEGUMES_Thoth.xlsx"] = write_output(MODEL_KROSS_LEGUMES, kross_legumes_matrix, "KROSS")
+            files_to_zip["BRASAO_CD.xlsx"] = build_cd_workbook(cd_frutas_matrix, cd_legumes_matrix)
+
+            files_to_zip["BRASAO_PRECOS.xlsx"] = build_prices_sheet(brasao_df)
+            files_to_zip["KROSS_PRECOS.xlsx"] = build_prices_sheet(kross_df)
+            files_to_zip["BRASAO_CD_PRECOS.xlsx"] = build_prices_sheet(cd_df)
+
+            if not errors_data.empty:
+                err_out = BytesIO()
+                with pd.ExcelWriter(err_out, engine="openpyxl") as writer:
+                    identified_df.to_excel(writer, sheet_name="ARQUIVOS", index=False)
+                    errors_data.to_excel(writer, sheet_name="ERROS", index=False)
+                err_out.seek(0)
+                files_to_zip["LOG_PROCESSAMENTO.xlsx"] = err_out.getvalue()
+            else:
+                info_out = BytesIO()
+                with pd.ExcelWriter(info_out, engine="openpyxl") as writer:
+                    identified_df.to_excel(writer, sheet_name="ARQUIVOS", index=False)
+                info_out.seek(0)
+                files_to_zip["LOG_PROCESSAMENTO.xlsx"] = info_out.getvalue()
+
+            zip_bytes = build_zip(files_to_zip)
 
             st.success("Processamento concluído com sucesso.")
 
-            st.caption(
-                f"Colunas encontradas no pedido → "
-                f"Loja: {debug_info['col_loja']} | "
-                f"Produto: {debug_info['col_produto']} | "
-                f"Qtde: {debug_info['col_qtde']} | "
-                f"Código: {debug_info['col_codigo']} | "
-                f"Preço: {debug_info['col_preco']}"
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("PDFs", len(pdf_files))
+            c2.metric("Arquivos identificados", len(identified_df))
+            c3.metric("Itens convertidos", len(all_data))
+            c4.metric("Erros", len(errors_data))
+
+            st.subheader("Arquivos processados")
+            st.dataframe(identified_df, use_container_width=True)
+
+            if not errors_data.empty:
+                st.subheader("Itens com erro")
+                st.dataframe(errors_data, use_container_width=True)
+
+            st.download_button(
+                "Baixar ZIP final",
+                zip_bytes,
+                file_name="THOTH_BRASAO_KROSS_PRO.zip",
+                mime="application/zip",
+                use_container_width=True,
             )
-
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Itens FRUTAS", len(frutas_df.index))
-            c2.metric("Itens LEGUMES (Inclui Novos)", len(legumes_df.index))
-            c3.metric("Lojas processadas", len(pivot.columns))
-
-            d1, d2, d3 = st.columns(3)
-            with d1:
-                st.download_button("Baixar FRUTAS", frutas_file, "KRILL_FRUTAS_Thoth.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-            with d2:
-                st.download_button("Baixar LEGUMES", legumes_file, "KRILL_LEGUMES_Thoth.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-            with d3:
-                st.download_button("Baixar PREÇOS", prices_file, "KRILL_PRECOS.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
         except Exception as e:
             st.error(f"Erro ao processar: {e}")
-            with st.expander("Ver detalhes do erro (Envie isso para suporte)"):
+            with st.expander("Ver detalhes do erro"):
                 st.code(traceback.format_exc())
