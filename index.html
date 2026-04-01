@@ -277,25 +277,57 @@
       try {
         const data = await file.arrayBuffer();
         const wb = XLSX.read(data, { type: 'array' });
-        
-        wb.SheetNames.forEach(sheetName => {
-          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 });
-          if (rows.length < 2) return;
+        // Dentro do loop wb.SheetNames.forEach...
+const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 });
+if (rows.length < 2) return;
 
-          // Inteligência de Leitura: Encontrar índices de colunas dinamicamente
-          const headers = rows[0].map(h => normalizeText(h));
-          let idxProd = headers.findIndex(h => h.includes("PRODUTO") || h.includes("DESCRICAO"));
-          let idxQtd = headers.findIndex(h => h.includes("QTD") || h.includes("QUANTIDADE"));
-          let idxLoja = headers.findIndex(h => h.includes("LOJA") || h.includes("CLIENTE"));
-          
-          // Fallback caso não tenha cabeçalho claro (assume padrão: Col A = Prod, Col B = Qtd)
-          if (idxProd === -1) idxProd = 0;
-          if (idxQtd === -1) idxQtd = 1;
+// 1. INTELIGÊNCIA DE LEITURA: Procurar o cabeçalho nas 10 primeiras linhas
+let idxProd = -1;
+let idxQtd = -1;
+let idxLoja = -1;
+let linhaCabecalho = 0;
 
-          for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            const nomeProdutoRaw = row[idxProd];
-            const qtdRaw = row[idxQtd];
+for (let r = 0; r < Math.min(10, rows.length); r++) {
+  if (!rows[r]) continue;
+  
+  // Normaliza a linha inteira para facilitar a busca
+  const headers = rows[r].map(h => normalizeText(h));
+  
+  // Busca mais abrangente de sinônimos de colunas
+  const tempProd = headers.findIndex(h => h.includes("PRODUTO") || h.includes("DESCRICAO") || h.includes("MERCADORIA") || h.includes("ITEM"));
+  const tempQtd = headers.findIndex(h => h.includes("QTD") || h.includes("QUANT") || h.includes("PEDIDO") || h.includes("VOL") || h.includes("CX") || h.includes("PESO"));
+  const tempLoja = headers.findIndex(h => h.includes("LOJA") || h.includes("CLIENTE") || h.includes("DESTINO"));
+
+  // Se achou pelo menos a coluna de Produto ou Quantidade, assume que esta é a linha de cabeçalho
+  if (tempProd !== -1 || tempQtd !== -1) {
+    idxProd = tempProd;
+    idxQtd = tempQtd;
+    idxLoja = tempLoja;
+    linhaCabecalho = r;
+    break; 
+  }
+}
+
+// 2. FALLBACK DE SEGURANÇA (Se mesmo assim não achar, não trava o sistema!)
+if (idxProd === -1) {
+  idxProd = 0; // Assume coluna A
+  log(`Aviso na aba ${sheetName}: Coluna PRODUTO não identificada por nome. Usando coluna A.`, 'warn');
+}
+if (idxQtd === -1) {
+  idxQtd = 1; // Assume coluna B
+  log(`Aviso na aba ${sheetName}: Coluna QUANTIDADE não identificada. Usando coluna B.`, 'warn');
+}
+
+// 3. PROCESSAMENTO DOS DADOS (Começando da linha LOGO ABAIXO do cabeçalho)
+for (let i = linhaCabecalho + 1; i < rows.length; i++) {
+  const row = rows[i];
+  const nomeProdutoRaw = row[idxProd];
+  const qtdRaw = row[idxQtd];
+
+  // Ignora linhas totalmente vazias ou que não tenham produto/quantidade preenchidos
+  if (!nomeProdutoRaw || qtdRaw === undefined || qtdRaw === null || qtdRaw === "") continue;
+
+  // ... (continua o resto da sua lógica de conversão aqui: contadores.total++, normalizeText, etc.)
 
             if (!nomeProdutoRaw || !qtdRaw) continue; // Ignora linhas vazias
 
