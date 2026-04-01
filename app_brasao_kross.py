@@ -479,7 +479,7 @@ def match_base_item(desc: str, base_df: pd.DataFrame):
     return None
 def infer_boxes_without_base(row):
     unit = norm_key(row.get("UnidadeDetectada"))
-    qtd = row.get("Qtde")
+    qtd = choose_conversion_quantity(row)
     emb = row.get("QtdeEmb")
     if is_missing_number(qtd):
         return 0, "quantidade ausente"
@@ -496,7 +496,7 @@ def infer_boxes_without_base(row):
             emb = float(emb)
         except Exception:
             emb = None
-        if emb and emb > 0:
+        if emb and emb > 0 and qtd >= emb:
             return ceil_div(qtd, emb), f"conversao automatica via QtdeEmb ({unit or 'SEM_UNIDADE'})"
 
     # Tratar como caixa direta só quando o PDF já vier claramente em caixas.
@@ -504,10 +504,55 @@ def infer_boxes_without_base(row):
         return int(qtd), "quantidade ja em caixas"
 
     return 0, f"sem base e sem fator de conversao ({unit or 'SEM_UNIDADE'})"
-def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
-    modo = norm_key(base_row.get("modo", ""))
-    unit = norm_key(unit)
 
+def choose_conversion_quantity(row, base_row=None):
+    """
+    Escolhe a quantidade mais confiável para conversão.
+    Em muitos PDFs do Brasão/Kross, Qtde e QtdeEmb podem vir invertidos
+    ou um deles representar apenas a embalagem. Para conversão por peso,
+    unidade ou bandeja, usamos o maior valor positivo entre os dois campos.
+    """
+    q1 = row.get("Qtde")
+    q2 = row.get("QtdeEmb")
+
+    vals = []
+    for v in (q1, q2):
+        if not is_missing_number(v):
+            try:
+                f = float(v)
+                if f > 0:
+                    vals.append(f)
+            except Exception:
+                pass
+
+    if not vals:
+        return 0.0
+
+    modo = norm_key(base_row.get("modo", "")) if base_row is not None else ""
+    unit = norm_key(row.get("UnidadeDetectada", ""))
+
+    # Para conversão em peso/unidade/bandeja, a quantidade pedida costuma ser
+    # o maior dos dois campos numéricos. Isso corrige casos como 1 e 400,
+    # onde 400kg é a quantidade real e 1 é apenas um marcador de embalagem.
+    if modo in {"PESO", "UNIDADE", "UND", "BANDEJA", "BDJ"} or unit in {"KG", "UND", "BDJ"}:
+        return max(vals)
+
+    # Para caixa direta, preserva o campo Qtde quando válido.
+    if not is_missing_number(q1):
+        try:
+            q1 = float(q1)
+            if q1 > 0:
+                return q1
+        except Exception:
+            pass
+
+    return max(vals)
+
+def convert_to_boxes(row, base_row) -> int:
+    modo = norm_key(base_row.get("modo", ""))
+    unit = norm_key(row.get("UnidadeDetectada", ""))
+
+    qtd = choose_conversion_quantity(row, base_row)
     if is_missing_number(qtd):
         return 0
 
@@ -543,6 +588,7 @@ def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
     if unit == "BDJ":
         return ceil_div(qtd, bandejas_por_caixa)
     return 0
+
 def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFrame):
     out_rows = []
     errors = []
@@ -552,7 +598,7 @@ def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFr
         conversion_note = ""
 
         if base_row is not None:
-            caixas = convert_to_boxes(row["Qtde"], row["UnidadeDetectada"], base_row)
+            caixas = convert_to_boxes(row, base_row)
             produto_modelo = base_row["produto_base"]
             produto_key = base_row["produto_key"]
             categoria = norm_key(base_row["categoria"])
