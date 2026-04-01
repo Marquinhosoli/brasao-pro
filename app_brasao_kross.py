@@ -427,35 +427,56 @@ def match_base_item(desc: str, base_df: pd.DataFrame):
         if key in row["sinonimos_key"]:
             return row
 
-    contains = base_df[base_df["produto_key"].apply(lambda x: x in key or key in x)]
-    if not contains.empty:
-        contains = contains.assign(_len=contains["produto_key"].map(len)).sort_values("_len", ascending=False)
-        return contains.iloc[0]
-
     desc_tokens = set(tokenize_desc(desc))
-    if desc_tokens:
-        best_row = None
-        best_score = 0
-        for _, row in base_df.iterrows():
-            row_tokens = set(tokenize_desc(row["produto_base"]))
+    if not desc_tokens:
+        return None
+
+    # contains mais seguro: exige pelo menos 2 tokens relevantes em comum
+    contains_candidates = []
+    for _, row in base_df.iterrows():
+        row_key = row["produto_key"]
+        row_tokens = set(tokenize_desc(row["produto_base"]))
+        overlap = len(desc_tokens & row_tokens)
+        if overlap >= 2 and (row_key in key or key in row_key):
+            contains_candidates.append((overlap, len(row_key), row))
+        for syn in row.get("sinonimos", []) or []:
+            syn_key = norm_key(syn)
+            syn_tokens = set(tokenize_desc(syn))
+            syn_overlap = len(desc_tokens & syn_tokens)
+            if syn_overlap >= 2 and (syn_key in key or key in syn_key):
+                contains_candidates.append((syn_overlap, len(syn_key), row))
+
+    if contains_candidates:
+        contains_candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        return contains_candidates[0][2]
+
+    # similaridade por tokens: bem mais conservadora para não converter produto errado
+    best_row = None
+    best_overlap = 0
+    best_ratio = 0.0
+
+    for _, row in base_df.iterrows():
+        options = [row["produto_base"]] + list(row.get("sinonimos", []) or [])
+        for option in options:
+            row_tokens = set(tokenize_desc(option))
             if not row_tokens:
                 continue
-            score = len(desc_tokens & row_tokens)
-            if score > best_score:
-                best_score = score
+            overlap = len(desc_tokens & row_tokens)
+            ratio = overlap / max(len(desc_tokens), len(row_tokens))
+            if overlap > best_overlap or (overlap == best_overlap and ratio > best_ratio):
+                best_overlap = overlap
+                best_ratio = ratio
                 best_row = row
-            for syn in row.get("sinonimos", []) or []:
-                syn_tokens = set(tokenize_desc(syn))
-                syn_score = len(desc_tokens & syn_tokens)
-                if syn_score > best_score:
-                    best_score = syn_score
-                    best_row = row
-        if best_row is not None and best_score >= 1:
+
+    if best_row is not None:
+        # 2+ tokens e cobertura mínima razoável
+        if best_overlap >= 2 and best_ratio >= 0.5:
+            return best_row
+        # caso de nome curto e muito específico
+        if len(desc_tokens) == 1 and best_overlap == 1 and best_ratio == 1:
             return best_row
 
     return None
-
-
 def infer_boxes_without_base(row):
     unit = norm_key(row.get("UnidadeDetectada"))
     qtd = row.get("Qtde")
@@ -469,20 +490,20 @@ def infer_boxes_without_base(row):
     if qtd <= 0:
         return 0, "quantidade zerada"
 
-    if unit == "CX":
-        return int(qtd), "quantidade ja em caixas"
-
+    # Sem base, só faz conversão automática quando existir fator confiável no PDF.
     if not is_missing_number(emb):
         try:
             emb = float(emb)
         except Exception:
             emb = None
         if emb and emb > 0:
-            return ceil_div(qtd, emb), f"conversao automatica via QtdeEmb ({unit})"
+            return ceil_div(qtd, emb), f"conversao automatica via QtdeEmb ({unit or 'SEM_UNIDADE'})"
 
-    return 0, f"sem base e sem fator de conversao ({unit})"
+    # Tratar como caixa direta só quando o PDF já vier claramente em caixas.
+    if unit == "CX":
+        return int(qtd), "quantidade ja em caixas"
 
-
+    return 0, f"sem base e sem fator de conversao ({unit or 'SEM_UNIDADE'})"
 def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
     modo = norm_key(base_row.get("modo", ""))
     unit = norm_key(unit)
@@ -502,24 +523,26 @@ def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
     itens_por_caixa = base_row.get("itens_por_caixa")
     bandejas_por_caixa = base_row.get("bandejas_por_caixa")
 
-    if modo == "CAIXA" or unit == "CX":
+    # Prioridade total para o modo da base. Isso evita erro tipo Laranja Kinkan virar 400 caixas.
+    if modo == "CAIXA":
         return int(qtd)
-    if modo == "PESO" or unit == "KG":
+    if modo == "PESO":
         return ceil_div(qtd, peso_caixa)
-    if modo in {"UNIDADE", "UND"} or unit == "UND":
+    if modo in {"UNIDADE", "UND"}:
         return ceil_div(qtd, itens_por_caixa)
-    if modo in {"BANDEJA", "BDJ"} or unit == "BDJ":
+    if modo in {"BANDEJA", "BDJ"}:
         return ceil_div(qtd, bandejas_por_caixa)
 
-    if unit == "KG" and not is_missing_number(peso_caixa):
+    # Sem modo definido na base, cai para a unidade detectada no PDF.
+    if unit == "CX":
+        return int(qtd)
+    if unit == "KG":
         return ceil_div(qtd, peso_caixa)
-    if unit == "UND" and not is_missing_number(itens_por_caixa):
+    if unit == "UND":
         return ceil_div(qtd, itens_por_caixa)
-    if unit == "BDJ" and not is_missing_number(bandejas_por_caixa):
+    if unit == "BDJ":
         return ceil_div(qtd, bandejas_por_caixa)
     return 0
-
-
 def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFrame):
     out_rows = []
     errors = []
@@ -533,19 +556,18 @@ def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFr
             produto_modelo = base_row["produto_base"]
             produto_key = base_row["produto_key"]
             categoria = norm_key(base_row["categoria"])
+
             if caixas <= 0:
+                # Se a base existe mas o fator está faltando, tenta QtdeEmb sem trocar o produto.
                 caixas, conversion_note = infer_boxes_without_base(row)
-                if caixas > 0:
-                    produto_modelo = cleaned_product_name(row["DescricaoOriginal"])
-                    produto_key = norm_key(produto_modelo)
-                    categoria = infer_category_from_desc(row["DescricaoOriginal"], base_df)
-                else:
+                if caixas <= 0:
                     errors.append({
                         "loja": store_rule["display"],
                         "produto": row["DescricaoOriginal"],
                         "erro": f"Falha na conversão para caixa ({row['UnidadeDetectada']})",
                     })
                     continue
+                conversion_note = f"fallback do PDF para produto cadastrado: {conversion_note}"
         else:
             caixas, conversion_note = infer_boxes_without_base(row)
             if caixas <= 0:
@@ -575,14 +597,12 @@ def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFr
             "QtdeOriginal": row["Qtde"],
             "QtdeEmb": row["QtdeEmb"],
             "UnidadeDetectada": row["UnidadeDetectada"],
-            "AutoAdicionado": "SIM" if (base_row is None or conversion_note) else "NAO",
+            "AutoAdicionado": "SIM" if base_row is None else "NAO",
         })
 
     out_df = pd.DataFrame(out_rows)
     errors_df = pd.DataFrame(errors)
     return out_df, errors_df
-
-
 def group_to_matrix(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame()
