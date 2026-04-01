@@ -360,7 +360,7 @@
         const vals = row.map(c => normalizarTexto(c));
         let score = 0;
         vals.forEach(v => {
-          if (["produto","item","descricao","descricao","mercadoria"].includes(v)) score += 4;
+          if (["produto","item","descricao","mercadoria"].includes(v)) score += 4;
           if (["qtd","qtde","quantidade","kg","bandeja","bandejas","un","unid","unidade"].includes(v)) score += 3;
           if (["tipo","embalagem","loja","filial","cliente"].includes(v)) score += 2;
         });
@@ -373,7 +373,7 @@
       const mapa = { produto: -1, quantidade: -1, tipo: -1, loja: -1, codigo: -1, preco: -1 };
       headers.forEach((h, idx) => {
         const v = normalizarTexto(h);
-        if (mapa.produto === -1 && ["produto","item","descricao","descricao","mercadoria"].some(x => v.includes(x))) mapa.produto = idx;
+        if (mapa.produto === -1 && ["produto","item","descricao","mercadoria"].some(x => v.includes(x))) mapa.produto = idx;
         if (mapa.quantidade === -1 && ["quantidade","qtd","qtde"].some(x => v.includes(x))) mapa.quantidade = idx;
         if (mapa.tipo === -1 && ["tipo","embalagem","unidade","und","formato"].some(x => v.includes(x))) mapa.tipo = idx;
         if (mapa.loja === -1 && ["loja","filial","cliente","destino"].some(x => v.includes(x))) mapa.loja = idx;
@@ -436,6 +436,16 @@
       return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
     }
 
+    function inferirCategoria(produto, nomeAba, nomeArquivo) {
+      const base = BASE_MESTRE[produto];
+      if (base?.categoria) return base.categoria;
+
+      const texto = normalizarTexto(`${nomeAba} ${nomeArquivo}`);
+      if (texto.includes('fruta')) return 'FRUTAS';
+      if (texto.includes('legume') || texto.includes('verdura')) return 'LEGUMES';
+      return 'SEM_CLASSIFICACAO';
+    }
+
     function processarAba(rows, nomeArquivo, nomeAba, clienteModo) {
       const saida = [];
       if (!rows.length) return saida;
@@ -478,7 +488,6 @@
         const codigo = mapa.codigo >= 0 ? String(row[mapa.codigo] ?? '').trim() : '';
         const preco = mapa.preco >= 0 ? String(row[mapa.preco] ?? '').trim() : '';
         const tipoInferido = inferirTipo(conv.produto, row, headers, mapa);
-
         const categoriaFinal = inferirCategoria(conv.produto, nomeAba, nomeArquivo);
 
         saida.push({
@@ -499,16 +508,6 @@
       });
 
       return saida;
-    }
-
-    function inferirCategoria(produto, nomeAba, nomeArquivo) {
-      const base = BASE_MESTRE[produto];
-      if (base?.categoria) return base.categoria;
-
-      const texto = normalizarTexto(`${nomeAba} ${nomeArquivo}`);
-      if (texto.includes('fruta')) return 'FRUTAS';
-      if (texto.includes('legume') || texto.includes('verdura')) return 'LEGUMES';
-      return 'SEM_CLASSIFICACAO';
     }
 
     function resumir(resultado) {
@@ -571,6 +570,24 @@
       return { todas, frutas, legumes, semBase, codigosPrecos };
     }
 
+    function formatarSaida(r) {
+      return {
+        arquivo: r.arquivo,
+        aba: r.aba,
+        cliente: r.cliente,
+        loja: r.loja,
+        produto_original: r.produto_original,
+        produto: r.produto,
+        categoria: r.categoria,
+        quantidade_original: r.quantidade_original,
+        unidade_base: r.unidade_base,
+        caixas: r.caixas,
+        status: r.status,
+        codigo_forn: r.codigo_forn,
+        preco_unitario: r.preco_unitario
+      };
+    }
+
     function baixarExcel(resultado) {
       const wb = XLSX.utils.book_new();
 
@@ -597,24 +614,6 @@
 
       const nome = (($("nomeSaida").value || 'THOTH_PRO_PROCESSADO').trim() || 'THOTH_PRO_PROCESSADO') + '.xlsx';
       XLSX.writeFile(wb, nome);
-    }
-
-    function formatarSaida(r) {
-      return {
-        arquivo: r.arquivo,
-        aba: r.aba,
-        cliente: r.cliente,
-        loja: r.loja,
-        produto_original: r.produto_original,
-        produto: r.produto,
-        categoria: r.categoria,
-        quantidade_original: r.quantidade_original,
-        unidade_base: r.unidade_base,
-        caixas: r.caixas,
-        status: r.status,
-        codigo_forn: r.codigo_forn,
-        preco_unitario: r.preco_unitario
-      };
     }
 
     async function lerArquivoExcel(file) {
