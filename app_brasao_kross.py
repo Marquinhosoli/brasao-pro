@@ -122,6 +122,18 @@ UNIT_PATTERNS = [
 ]
 
 
+NOISE_TOKENS = {
+    "BRASAO", "FRUTA", "FRUTAS", "LEGUME", "LEGUMES", "KROSS", "DE", "DO", "DA",
+    "DEMARCHI", "MARCHI", "SHELF", "IMPORTADO", "IMPORTADA", "NACIONAL", "KG", "UND", "BDJ",
+    "BANDEJA", "UNIDADE", "UNIDADES", "MACO", "MACOS", "BRS", "CX", "CAIXA", "CAIXAS"
+}
+
+CATEGORY_HINTS = {
+    "FRUTAS": {"ABACAXI","ABACATE","AMEIXA","AMORA","BANANA","CAQUI","COCO","FIGO","FRAMBOESA","GOIABA","JACA","KIWI","LARANJA","LIMAO","MACA","MAMAO","MANGA","MELANCIA","MELAO","MEXERICA","MORANGO","NECTARINA","PERA","PESSEGO","PITAYA","TANGERINA","UVA","MARACUJA"},
+    "LEGUMES": {"ABOBORA","ABOBRINHA","ALHO","BATATA","BATATA DOCE","BATATINHA","BERINJELA","BETERRABA","BROCOLIS","BROCOLIS NINJA","BROCOLIS RAMO","CEBOLA","CENOURA","CHUCHU","COUVE","COUVE FLOR","GENGIBRE","INHAME","MANDIOCA","MILHO","PEPINO","PIMENTA","PIMENTAO","QUIABO","RABANETE","REPOLHO","TOMATE","VAGEM"}
+}
+
+
 def norm_text(v):
     if v is None:
         return ""
@@ -359,6 +371,51 @@ def parse_order_items(pdf_text: str) -> pd.DataFrame:
     return df
 
 
+def tokenize_desc(desc: str):
+    key = norm_key(desc)
+    key = re.sub(r"\b\d+[.,]?\d*G\b", " ", key)
+    key = re.sub(r"\b\d+[.,]?\d*KG\b", " ", key)
+    key = re.sub(r"\b\d+[.,]?\d*ML\b", " ", key)
+    key = re.sub(r"\b\d+[.,]?\d*L\b", " ", key)
+    key = re.sub(r"[^A-Z0-9 ]", " ", key)
+    tokens = [t for t in key.split() if t and t not in NOISE_TOKENS and not t.isdigit()]
+    return tokens
+
+
+def cleaned_product_name(desc: str) -> str:
+    key = norm_key(desc)
+    key = re.sub(r"\bSHELF\s*\d+\b", " ", key)
+    key = re.sub(r"\b\d+[.,]?\d*G\b", " ", key)
+    key = re.sub(r"\b\d+[.,]?\d*ML\b", " ", key)
+    key = re.sub(r"\b(IMPORTADO|IMPORTADA|NACIONAL|DEMARCHI|MARCHI|BRASAO|KROSS|FRUTA|FRUTAS|LEGUME|LEGUMES)\b", " ", key)
+    key = re.sub(r"\s+", " ", key).strip()
+    return key.title() if key else clean_desc(desc)
+
+
+def infer_category_from_desc(desc: str, base_df=None) -> str:
+    key = norm_key(desc)
+    best_cat = None
+    best_score = 0
+    tokens = set(tokenize_desc(desc))
+    if base_df is not None and tokens:
+        for _, r in base_df.iterrows():
+            rtokens = set(tokenize_desc(r["produto_base"]))
+            if not rtokens:
+                continue
+            score = len(tokens & rtokens)
+            if score > best_score:
+                best_score = score
+                best_cat = norm_key(r["categoria"])
+        if best_score >= 1 and best_cat:
+            return best_cat
+
+    for cat, words in CATEGORY_HINTS.items():
+        for word in words:
+            if word in key:
+                return cat
+    return "FRUTAS"
+
+
 def match_base_item(desc: str, base_df: pd.DataFrame):
     key = norm_key(desc)
 
@@ -375,7 +432,55 @@ def match_base_item(desc: str, base_df: pd.DataFrame):
         contains = contains.assign(_len=contains["produto_key"].map(len)).sort_values("_len", ascending=False)
         return contains.iloc[0]
 
+    desc_tokens = set(tokenize_desc(desc))
+    if desc_tokens:
+        best_row = None
+        best_score = 0
+        for _, row in base_df.iterrows():
+            row_tokens = set(tokenize_desc(row["produto_base"]))
+            if not row_tokens:
+                continue
+            score = len(desc_tokens & row_tokens)
+            if score > best_score:
+                best_score = score
+                best_row = row
+            for syn in row.get("sinonimos", []) or []:
+                syn_tokens = set(tokenize_desc(syn))
+                syn_score = len(desc_tokens & syn_tokens)
+                if syn_score > best_score:
+                    best_score = syn_score
+                    best_row = row
+        if best_row is not None and best_score >= 1:
+            return best_row
+
     return None
+
+
+def infer_boxes_without_base(row):
+    unit = norm_key(row.get("UnidadeDetectada"))
+    qtd = row.get("Qtde")
+    emb = row.get("QtdeEmb")
+    if is_missing_number(qtd):
+        return 0, "quantidade ausente"
+    try:
+        qtd = float(qtd)
+    except Exception:
+        return 0, "quantidade invalida"
+    if qtd <= 0:
+        return 0, "quantidade zerada"
+
+    if unit == "CX":
+        return int(qtd), "quantidade ja em caixas"
+
+    if not is_missing_number(emb):
+        try:
+            emb = float(emb)
+        except Exception:
+            emb = None
+        if emb and emb > 0:
+            return ceil_div(qtd, emb), f"conversao automatica via QtdeEmb ({unit})"
+
+    return 0, f"sem base e sem fator de conversao ({unit})"
 
 
 def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
@@ -421,34 +526,56 @@ def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFr
 
     for _, row in order_df.iterrows():
         base_row = match_base_item(row["DescricaoOriginal"], base_df)
-        if base_row is None:
-            errors.append({
-                "loja": store_rule["display"],
-                "produto": row["DescricaoOriginal"],
-                "erro": "Produto não encontrado na base",
-            })
-            continue
+        conversion_note = ""
 
-        caixas = convert_to_boxes(row["Qtde"], row["UnidadeDetectada"], base_row)
-        if caixas <= 0:
-            errors.append({
-                "loja": store_rule["display"],
-                "produto": row["DescricaoOriginal"],
-                "erro": f"Falha na conversão para caixa ({row['UnidadeDetectada']})",
-            })
-            continue
+        if base_row is not None:
+            caixas = convert_to_boxes(row["Qtde"], row["UnidadeDetectada"], base_row)
+            produto_modelo = base_row["produto_base"]
+            produto_key = base_row["produto_key"]
+            categoria = norm_key(base_row["categoria"])
+            if caixas <= 0:
+                caixas, conversion_note = infer_boxes_without_base(row)
+                if caixas > 0:
+                    produto_modelo = cleaned_product_name(row["DescricaoOriginal"])
+                    produto_key = norm_key(produto_modelo)
+                    categoria = infer_category_from_desc(row["DescricaoOriginal"], base_df)
+                else:
+                    errors.append({
+                        "loja": store_rule["display"],
+                        "produto": row["DescricaoOriginal"],
+                        "erro": f"Falha na conversão para caixa ({row['UnidadeDetectada']})",
+                    })
+                    continue
+        else:
+            caixas, conversion_note = infer_boxes_without_base(row)
+            if caixas <= 0:
+                errors.append({
+                    "loja": store_rule["display"],
+                    "produto": row["DescricaoOriginal"],
+                    "erro": "Produto não encontrado na base e sem conversão automática",
+                })
+                continue
+            produto_modelo = cleaned_product_name(row["DescricaoOriginal"])
+            produto_key = norm_key(produto_modelo)
+            categoria = infer_category_from_desc(row["DescricaoOriginal"], base_df)
 
         out_rows.append({
             "Grupo": store_rule["group"],
             "LojaKey": store_rule["col_key"],
             "LojaNome": store_rule["display"],
-            "Categoria": norm_key(base_row["categoria"]),
-            "ProdutoModelo": base_row["produto_base"],
-            "ProdutoKey": base_row["produto_key"],
+            "Categoria": categoria,
+            "ProdutoModelo": produto_modelo,
+            "ProdutoKey": produto_key,
             "Caixas": caixas,
             "CodigoPedido": row["CodigoPedido"],
             "CodFornPedido": row["CodFornPedido"],
             "PrecoPedido": row["PrecoPedido"],
+            "ObservacaoConversao": conversion_note,
+            "DescricaoOriginal": row["DescricaoOriginal"],
+            "QtdeOriginal": row["Qtde"],
+            "QtdeEmb": row["QtdeEmb"],
+            "UnidadeDetectada": row["UnidadeDetectada"],
+            "AutoAdicionado": "SIM" if (base_row is None or conversion_note) else "NAO",
         })
 
     out_df = pd.DataFrame(out_rows)
@@ -637,6 +764,31 @@ def build_prices_sheet(df: pd.DataFrame) -> bytes:
         ws.column_dimensions["B"].width = 14
         ws.column_dimensions["C"].width = 45
         ws.column_dimensions["D"].width = 12
+    out.seek(0)
+    return out.getvalue()
+
+
+def build_auto_added_sheet(df: pd.DataFrame) -> bytes:
+    cols = [
+        "Grupo", "LojaNome", "Categoria", "ProdutoModelo", "DescricaoOriginal", "UnidadeDetectada",
+        "QtdeOriginal", "QtdeEmb", "Caixas", "CodigoPedido", "CodFornPedido", "PrecoPedido",
+        "ObservacaoConversao", "AutoAdicionado"
+    ]
+    if df.empty or "AutoAdicionado" not in df.columns:
+        base = pd.DataFrame(columns=cols)
+    else:
+        base = df[df["AutoAdicionado"] == "SIM"].copy()
+        for c in cols:
+            if c not in base.columns:
+                base[c] = ""
+        base = base[cols].sort_values(["Grupo", "LojaNome", "ProdutoModelo"])
+
+    out = BytesIO()
+    with pd.ExcelWriter(out, engine="openpyxl") as writer:
+        base.to_excel(writer, sheet_name="AUTO_ADICIONADOS", index=False)
+        ws = writer.sheets["AUTO_ADICIONADOS"]
+        for letter, width in {"A":14,"B":22,"C":12,"D":30,"E":42,"F":14,"G":12,"H":12,"I":10,"J":12,"K":12,"L":12,"M":32,"N":14}.items():
+            ws.column_dimensions[letter].width = width
     out.seek(0)
     return out.getvalue()
 
