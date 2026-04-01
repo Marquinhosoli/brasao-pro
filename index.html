@@ -7,142 +7,38 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
-      --bg-color: #0b1021;
-      --card-bg: #151c33;
-      --primary: #4f8cff;
-      --primary-hover: #3a70db;
-      --success: #23c483;
-      --danger: #ff4d4d;
-      --warning: #ffb020;
-      --text-main: #e8eefc;
-      --text-muted: #8e9bb0;
-      --border: #2a3654;
-      --radius: 12px;
+      --bg-color: #0b1021; --card-bg: #151c33; --primary: #4f8cff;
+      --primary-hover: #3a70db; --success: #23c483; --danger: #ff4d4d;
+      --warning: #ffb020; --text-main: #e8eefc; --text-muted: #8e9bb0;
+      --border: #2a3654; --radius: 12px;
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-main);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      padding: 20px;
-    }
-
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      width: 100%;
-    }
-
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .header h1 {
-      font-size: 1.5rem;
-      color: var(--primary);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .grid-dashboard {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-
-    .stat-card {
-      background: var(--card-bg);
-      padding: 20px;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      text-align: center;
-    }
-
-    .stat-card h3 { font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;}
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-color); color: var(--text-main); padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .header h1 { font-size: 1.5rem; color: var(--primary); }
+    .grid-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--card-bg); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); text-align: center; }
+    .stat-card h3 { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;}
     .stat-card .value { font-size: 2rem; font-weight: bold; }
     .stat-card.success .value { color: var(--success); }
     .stat-card.danger .value { color: var(--danger); }
     .stat-card.primary .value { color: var(--primary); }
-
-    .controls {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-bottom: 24px;
-      background: var(--card-bg);
-      padding: 20px;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      align-items: center;
-    }
-
-    .btn {
-      padding: 12px 24px;
-      border-radius: 8px;
-      border: none;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-size: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
+    .controls { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; background: var(--card-bg); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); align-items: center; }
+    .btn { padding: 12px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 1rem; }
     .btn-primary { background: var(--primary); color: #fff; }
-    .btn-primary:hover { background: var(--primary-hover); }
     .btn-success { background: var(--success); color: #000; }
-    .btn-success:hover { background: #1da36d; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
     input[type="file"] { display: none; }
-    .file-label {
-      background: transparent;
-      border: 2px dashed var(--primary);
-      color: var(--primary);
-      padding: 10px 20px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-      transition: 0.2s;
-    }
-    .file-label:hover { background: rgba(79, 140, 255, 0.1); }
-
-    .log-container {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px;
-      height: 300px;
-      overflow-y: auto;
-      font-family: 'Consolas', monospace;
-      font-size: 0.9rem;
-      color: var(--text-muted);
-    }
-
+    .file-label { border: 2px dashed var(--primary); color: var(--primary); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+    .file-label.base { border-color: var(--warning); color: var(--warning); }
+    .log-container { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; height: 300px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.9rem; color: var(--text-muted); }
     .log-entry { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); }
     .log-entry.error { color: var(--danger); }
     .log-entry.warn { color: var(--warning); }
     .log-entry.info { color: var(--primary); }
-
-    /* Responsividade avançada para telas menores */
-    @media (max-width: 768px) {
-      .controls { flex-direction: column; align-items: stretch; }
-      .btn { justify-content: center; }
-      .file-label { text-align: center; }
-    }
+    .log-entry.success { color: var(--success); }
+    @media (max-width: 768px) { .controls { flex-direction: column; align-items: stretch; } .file-label { text-align: center; } }
   </style>
 </head>
 <body>
@@ -150,192 +46,170 @@
 <div class="container">
   <div class="header">
     <h1>📦 THOTH PRO Multi-Cliente</h1>
-    <span style="color: var(--text-muted); font-size: 0.85rem;">Motor de Conversão Inteligente</span>
+    <span style="color: var(--text-muted); font-size: 0.85rem;">Motor Dinâmico de Conversão</span>
   </div>
 
   <div class="grid-dashboard">
-    <div class="stat-card primary">
-      <h3>Total Lidos</h3>
-      <div class="value" id="valTotal">0</div>
-    </div>
-    <div class="stat-card success">
-      <h3>Convertidos</h3>
-      <div class="value" id="valConvertidos">0</div>
-    </div>
-    <div class="stat-card danger">
-      <h3>Sem Base</h3>
-      <div class="value" id="valSemBase">0</div>
-    </div>
+    <div class="stat-card primary"><h3>Total Lidos</h3><div class="value" id="valTotal">0</div></div>
+    <div class="stat-card success"><h3>Convertidos</h3><div class="value" id="valConvertidos">0</div></div>
+    <div class="stat-card danger"><h3>Sem Base</h3><div class="value" id="valSemBase">0</div></div>
   </div>
 
   <div class="controls">
-    <label class="file-label" for="fileInput">📁 SELECIONAR ARQUIVOS (EXCEL)</label>
-    <input type="file" id="fileInput" multiple accept=".xlsx, .xls, .csv" />
-    <span id="fileCount" style="color: var(--text-muted); flex-grow: 1;">Nenhum arquivo selecionado</span>
+    <label class="file-label base" for="baseInput">📋 1. CARREGAR BASE PRODUTOS</label>
+    <input type="file" id="baseInput" accept=".xlsx, .csv" />
+    
+    <label class="file-label" for="fileInput">📁 2. SELECIONAR PEDIDOS</label>
+    <input type="file" id="fileInput" multiple accept=".xlsx, .xls, .csv" disabled />
     
     <button class="btn btn-primary" id="btnProcessar" disabled>⚙️ PROCESSAR PEDIDOS</button>
     <button class="btn btn-success" id="btnBaixar" style="display: none;">⬇️ BAIXAR EXCEL FINAL</button>
   </div>
 
   <div class="log-container" id="logArea">
-    <div class="log-entry">Sistema inicializado. Base Mestre carregada. Aguardando arquivos...</div>
-    <div class="log-entry" style="color: var(--text-muted); opacity: 0.5;">[Módulo PDF/OCR]: Standby.</div>
+    <div class="log-entry warn">Aguardando carregamento da Base Mestre (Planilha BASE_PRODUTOS)...</div>
   </div>
 </div>
 
 <script>
-  // ==========================================
-  // 1. BASE MESTRE - MOTOR DE CONVERSÃO
-  // Nenhuma conversão acontece fora desta base.
-  // ==========================================
-  const BASE_MESTRE_ARRAY = [
-    { produto: "LARANJA KINKAN", categoria: "FRUTAS", tipo: "PESO", peso_caixa: 20, sinonimos: ["KINKAN", "LARANJA KINKAN KG", "LARANJA KINKAN BRASAO FRUTA"] },
-    { produto: "LARANJA MAQUINA DE SUCO", categoria: "FRUTAS", tipo: "PESO", peso_caixa: 20, sinonimos: ["LARANJA SUCO"] },
-    { produto: "LIMAO SICILIANO", categoria: "FRUTAS", tipo: "PESO", peso_caixa: 20, sinonimos: ["LIMAO SICILIANO KG"] },
-    { produto: "LIMAO TAHITI", categoria: "FRUTAS", tipo: "PESO", peso_caixa: 20, sinonimos: ["LIMAO TAHITI KG"] },
-    { produto: "TOMATE GRAPE", categoria: "LEGUMES", tipo: "BDJ", bandejas_por_caixa: 12, sinonimos: ["TOMATE GRAP", "TOMATE SWEET GRAPE"] },
-    { produto: "MELAO GALIA", categoria: "FRUTAS", tipo: "UN", unidades_caixa: 6, sinonimos: ["MELAO GALIA UNIDADE"] }
-    // Adicione mais itens conforme a necessidade
-  ];
-
-  // Dicionário de busca O(1) ultra-rápido
-  const DICIONARIO_PRODUTOS = {};
-  BASE_MESTRE_ARRAY.forEach(item => {
-    DICIONARIO_PRODUTOS[normalizeText(item.produto)] = item;
-    if (item.sinonimos) {
-      item.sinonimos.forEach(sin => {
-        DICIONARIO_PRODUTOS[normalizeText(sin)] = item;
-      });
-    }
-  });
-
-  // ==========================================
-  // 2. VARIÁVEIS GLOBAIS
-  // ==========================================
+  let BASE_MESTRE_ARRAY = [];
+  let DICIONARIO_PRODUTOS = {};
   let arquivosSelecionados = [];
   let workbookFinal = null;
 
-  // Elementos UI
-  const elFileInput = document.getElementById('fileInput');
-  const elFileCount = document.getElementById('fileCount');
-  const btnProcessar = document.getElementById('btnProcessar');
-  const btnBaixar = document.getElementById('btnBaixar');
-  const logArea = document.getElementById('logArea');
-
-  // ==========================================
-  // 3. FUNÇÕES UTILITÁRIAS
-  // ==========================================
   function log(msg, type = '') {
     const div = document.createElement('div');
     div.className = `log-entry ${type}`;
-    const hora = new Date().toLocaleTimeString();
-    div.textContent = `[${hora}] ${msg}`;
-    logArea.appendChild(div);
-    logArea.scrollTop = logArea.scrollHeight;
+    div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    document.getElementById('logArea').appendChild(div);
+    document.getElementById('logArea').scrollTop = document.getElementById('logArea').scrollHeight;
   }
 
   function normalizeText(text) {
     if (!text) return "";
-    return text.toString()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
-      .replace(/[^a-zA-Z0-9 ]/g, " ") // Remove caracteres especiais
-      .replace(/\s+/g, " ") // Espaços duplos
-      .trim().toUpperCase();
-  }
-
-  function identificarLoja(nomeArquivo) {
-    const nomeNormal = normalizeText(nomeArquivo);
-    if (nomeNormal.includes("KRILL")) return "KRILL";
-    if (nomeNormal.includes("BRASAO")) return "BRASAO";
-    if (nomeNormal.includes("KROSS")) return "KROSS";
-    if (nomeNormal.includes("CD")) return "CENTRO DISTRIBUICAO";
-    return "LOJA INDEFINIDA";
+    return text.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim().toUpperCase();
   }
 
   // ==========================================
-  // 4. LÓGICA DE PROCESSAMENTO (MOTOR)
+  // PASSO 1: LEITURA DINÂMICA DA BASE MESTRE
   // ==========================================
-  elFileInput.addEventListener('change', (e) => {
-    arquivosSelecionados = Array.from(e.target.files);
-    elFileCount.textContent = `${arquivosSelecionados.length} arquivo(s) selecionado(s)`;
-    btnProcessar.disabled = arquivosSelecionados.length === 0;
-    btnBaixar.style.display = 'none';
-    log(`${arquivosSelecionados.length} arquivo(s) na fila para processamento.`, 'info');
+  document.getElementById('baseInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    
+    log(`Lendo Base Mestre: ${file.name}...`, 'info');
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array' });
+      const sheetName = wb.SheetNames.includes("BASE_PRODUTOS") ? "BASE_PRODUTOS" : wb.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+      
+      BASE_MESTRE_ARRAY = [];
+      DICIONARIO_PRODUTOS = {};
+
+      rows.forEach(row => {
+        const prodBase = row['produto_base'] || row['produto'] || row['PRODUTO'];
+        if(!prodBase) return;
+
+        const item = {
+          produto: prodBase.toUpperCase(),
+          categoria: (row['categoria'] || row['CATEGORIA'] || 'INDEFINIDO').toUpperCase(),
+          tipo: (row['modo_conversao'] || row['tipo'] || 'CAIXA').toUpperCase(),
+          peso_caixa: parseFloat(row['peso_caixa']) || 0,
+          bandejas_por_caixa: parseFloat(row['bandejas_por_caixa']) || 0,
+          unidades_caixa: parseFloat(row['itens_por_caixa'] || row['unidades_caixa']) || 0,
+          sinonimos: []
+        };
+
+        const sinStr = row['sinonimos'] || row['SINONIMOS'];
+        if (sinStr) {
+          item.sinonimos = sinStr.split(';').map(s => s.trim().toUpperCase()).filter(s => s);
+        }
+
+        BASE_MESTRE_ARRAY.push(item);
+        DICIONARIO_PRODUTOS[normalizeText(item.produto)] = item;
+        item.sinonimos.forEach(sin => DICIONARIO_PRODUTOS[normalizeText(sin)] = item);
+      });
+
+      log(`✅ Base Mestre carregada! ${BASE_MESTRE_ARRAY.length} produtos registrados e prontos.`, 'success');
+      document.getElementById('fileInput').disabled = false; // Libera seleção de pedidos
+    } catch (err) {
+      log(`Erro ao ler a Base: ${err.message}`, 'error');
+    }
   });
 
-  btnProcessar.addEventListener('click', async () => {
-    btnProcessar.disabled = true;
-    log("Iniciando processamento em lote...", 'info');
+  // ==========================================
+  // PASSO 2: SELEÇÃO E PROCESSAMENTO DOS PEDIDOS
+  // ==========================================
+  document.getElementById('fileInput').addEventListener('change', (e) => {
+    arquivosSelecionados = Array.from(e.target.files);
+    log(`${arquivosSelecionados.length} arquivo(s) de pedido selecionado(s).`, 'info');
+    document.getElementById('btnProcessar').disabled = arquivosSelecionados.length === 0;
+    document.getElementById('btnBaixar').style.display = 'none';
+  });
+
+  document.getElementById('btnProcessar').addEventListener('click', async () => {
+    document.getElementById('btnProcessar').disabled = true;
+    log("Iniciando motor de conversão...", 'info');
     
     let processados = { frutas: [], legumes: [], sem_base: [], consolidado: [] };
     let contadores = { total: 0, sucesso: 0, falha: 0 };
 
     for (let file of arquivosSelecionados) {
-      log(`Lendo arquivo: ${file.name}`);
-      const lojaIdentificada = identificarLoja(file.name);
+      let nomeArquivoNorm = normalizeText(file.name);
+      let lojaIdentificada = nomeArquivoNorm.includes("KRILL") ? "KRILL" : 
+                             nomeArquivoNorm.includes("BRASAO") ? "BRASAO" : 
+                             nomeArquivoNorm.includes("KROSS") ? "KROSS" : 
+                             nomeArquivoNorm.includes("CD") ? "CENTRO DISTRIBUICAO" : "LOJA INDEFINIDA";
       
       try {
         const data = await file.arrayBuffer();
         const wb = XLSX.read(data, { type: 'array' });
-        // Dentro do loop wb.SheetNames.forEach...
-const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 });
-if (rows.length < 2) return;
+        
+        wb.SheetNames.forEach(sheetName => {
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 });
+          if (rows.length < 2) return;
 
-// 1. INTELIGÊNCIA DE LEITURA: Procurar o cabeçalho nas 10 primeiras linhas
-let idxProd = -1;
-let idxQtd = -1;
-let idxLoja = -1;
-let linhaCabecalho = 0;
+          let idxProd = -1, idxQtd = -1, idxLoja = -1, linhaCabecalho = 0;
 
-for (let r = 0; r < Math.min(10, rows.length); r++) {
-  if (!rows[r]) continue;
-  
-  // Normaliza a linha inteira para facilitar a busca
-  const headers = rows[r].map(h => normalizeText(h));
-  
-  // Busca mais abrangente de sinônimos de colunas
-  const tempProd = headers.findIndex(h => h.includes("PRODUTO") || h.includes("DESCRICAO") || h.includes("MERCADORIA") || h.includes("ITEM"));
-  const tempQtd = headers.findIndex(h => h.includes("QTD") || h.includes("QUANT") || h.includes("PEDIDO") || h.includes("VOL") || h.includes("CX") || h.includes("PESO"));
-  const tempLoja = headers.findIndex(h => h.includes("LOJA") || h.includes("CLIENTE") || h.includes("DESTINO"));
+          // Procura cabeçalho nas 10 primeiras linhas
+          for (let r = 0; r < Math.min(10, rows.length); r++) {
+            if (!rows[r]) continue;
+            const headers = rows[r].map(h => normalizeText(h));
+            const tempProd = headers.findIndex(h => h.includes("PRODUTO") || h.includes("DESCRICAO") || h.includes("MERCADORIA"));
+            const tempQtd = headers.findIndex(h => h.includes("QTD") || h.includes("QUANT") || h.includes("PEDIDO") || h.includes("VOL") || h.includes("CX"));
+            const tempLoja = headers.findIndex(h => h.includes("LOJA") || h.includes("CLIENTE"));
 
-  // Se achou pelo menos a coluna de Produto ou Quantidade, assume que esta é a linha de cabeçalho
-  if (tempProd !== -1 || tempQtd !== -1) {
-    idxProd = tempProd;
-    idxQtd = tempQtd;
-    idxLoja = tempLoja;
-    linhaCabecalho = r;
-    break; 
-  }
-}
+            if (tempProd !== -1 || tempQtd !== -1) {
+              idxProd = tempProd !== -1 ? tempProd : 0;
+              idxQtd = tempQtd !== -1 ? tempQtd : 1;
+              idxLoja = tempLoja;
+              linhaCabecalho = r;
+              break; 
+            }
+          }
 
-// 2. FALLBACK DE SEGURANÇA (Se mesmo assim não achar, não trava o sistema!)
-if (idxProd === -1) {
-  idxProd = 0; // Assume coluna A
-  log(`Aviso na aba ${sheetName}: Coluna PRODUTO não identificada por nome. Usando coluna A.`, 'warn');
-}
-if (idxQtd === -1) {
-  idxQtd = 1; // Assume coluna B
-  log(`Aviso na aba ${sheetName}: Coluna QUANTIDADE não identificada. Usando coluna B.`, 'warn');
-}
+          // Fallback de segurança 
+          if (idxProd === -1) idxProd = 0;
+          if (idxQtd === -1) idxQtd = 1;
 
-// 3. PROCESSAMENTO DOS DADOS (Começando da linha LOGO ABAIXO do cabeçalho)
-for (let i = linhaCabecalho + 1; i < rows.length; i++) {
-  const row = rows[i];
-  const nomeProdutoRaw = row[idxProd];
-  const qtdRaw = row[idxQtd];
+          for (let i = linhaCabecalho + 1; i < rows.length; i++) {
+            const row = rows[i];
+            const nomeProdutoRaw = row[idxProd];
+            const qtdRaw = row[idxQtd];
 
-  // Ignora linhas totalmente vazias ou que não tenham produto/quantidade preenchidos
-  if (!nomeProdutoRaw || qtdRaw === undefined || qtdRaw === null || qtdRaw === "") continue;
+            if (!nomeProdutoRaw || qtdRaw === undefined || qtdRaw === null || qtdRaw === "") continue;
 
-  // ... (continua o resto da sua lógica de conversão aqui: contadores.total++, normalizeText, etc.)
-
-            if (!nomeProdutoRaw || !qtdRaw) continue; // Ignora linhas vazias
+            const nomeNormalizado = normalizeText(nomeProdutoRaw);
+            
+            // TRAVA ANTI-CABEÇALHO: Ignora se a linha for o próprio cabeçalho perdido
+            if (nomeNormalizado === "PRODUTO" || nomeNormalizado === "DESCRICAO" || nomeNormalizado === "MERCADORIA" || nomeNormalizado === "ITEM") continue;
 
             contadores.total++;
-            const nomeNormalizado = normalizeText(nomeProdutoRaw);
             const qtdNum = parseFloat(qtdRaw.toString().replace(',','.'));
-            const lojaRow = idxLoja !== -1 && row[idxLoja] ? row[idxLoja] : lojaIdentificada;
+            if (isNaN(qtdNum)) continue; // Ignora se a quantidade for um texto aleatório
 
+            const lojaRow = idxLoja !== -1 && row[idxLoja] ? row[idxLoja] : lojaIdentificada;
             const baseRef = DICIONARIO_PRODUTOS[nomeNormalizado];
 
             let registro = {
@@ -349,12 +223,11 @@ for (let i = linhaCabecalho + 1; i < rows.length; i++) {
             };
 
             if (baseRef) {
-              // REGRA DE CONVERSÃO CRÍTICA - SEMPRE ARREDONDA PARA CIMA
               let caixas = 0;
               if (baseRef.tipo === "PESO" && baseRef.peso_caixa) caixas = Math.ceil(qtdNum / baseRef.peso_caixa);
-              else if (baseRef.tipo === "BDJ" && baseRef.bandejas_por_caixa) caixas = Math.ceil(qtdNum / baseRef.bandejas_por_caixa);
-              else if (baseRef.tipo === "UN" && baseRef.unidades_caixa) caixas = Math.ceil(qtdNum / baseRef.unidades_caixa);
-              else caixas = Math.ceil(qtdNum); // Fallback de segurança se falhar o fator
+              else if ((baseRef.tipo === "BDJ" || baseRef.tipo === "BANDEJA") && baseRef.bandejas_por_caixa) caixas = Math.ceil(qtdNum / baseRef.bandejas_por_caixa);
+              else if ((baseRef.tipo === "UN" || baseRef.tipo === "UNIDADE") && baseRef.unidades_caixa) caixas = Math.ceil(qtdNum / baseRef.unidades_caixa);
+              else caixas = Math.ceil(qtdNum); // Modo CAIXA ou Fallback
               
               registro.CAIXAS_CONVERTIDAS = caixas;
               contadores.sucesso++;
@@ -364,8 +237,7 @@ for (let i = linhaCabecalho + 1; i < rows.length; i++) {
               if (baseRef.categoria === "LEGUMES") processados.legumes.push(registro);
               
             } else {
-              // SEM BASE - Regra estrita de nunca adivinhar
-              registro.MOTIVO = "Produto não mapeado na BASE_MESTRE";
+              registro.MOTIVO = "Produto não mapeado";
               processados.sem_base.push(registro);
               processados.consolidado.push(registro);
               contadores.falha++;
@@ -374,53 +246,34 @@ for (let i = linhaCabecalho + 1; i < rows.length; i++) {
           }
         });
       } catch (err) {
-        log(`Erro ao processar ${file.name}: ${err.message}`, 'error');
+        log(`Erro no arquivo ${file.name}: ${err.message}`, 'error');
       }
     }
 
-    // ==========================================
-    // 5. GERAÇÃO DE SAÍDA (EXCEL MULTI-ABA)
-    // ==========================================
+    // Geração do Excel Final
     workbookFinal = XLSX.utils.book_new();
-
-    // Aba 1: FRUTAS
     XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(processados.frutas), "FRUTAS");
-    // Aba 2: LEGUMES
     XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(processados.legumes), "LEGUMES");
-    // Aba 3: SEM_BASE
     XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(processados.sem_base), "SEM_BASE");
     
-    // Aba 4: CODIGOS_PRECOS (Tudo válido ordenado alfabeticamente)
     let codigosPrecos = [...processados.frutas, ...processados.legumes].sort((a, b) => a.PRODUTO_BASE.localeCompare(b.PRODUTO_BASE));
     XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(codigosPrecos), "CODIGOS_PRECOS");
-    
-    // Aba 5: CONSOLIDADO
     XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(processados.consolidado), "CONSOLIDADO");
-    
-    // Aba 6: BASE MESTRE
     XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(BASE_MESTRE_ARRAY), "BASE_MESTRE");
 
-    // Atualiza Painel
     document.getElementById('valTotal').textContent = contadores.total;
     document.getElementById('valConvertidos').textContent = contadores.sucesso;
     document.getElementById('valSemBase').textContent = contadores.falha;
 
     log(`Processamento concluído. Sucesso: ${contadores.sucesso} | Sem base: ${contadores.falha}`, 'success');
-    
-    btnProcessar.disabled = false;
-    btnBaixar.style.display = 'flex';
+    document.getElementById('btnProcessar').disabled = false;
+    document.getElementById('btnBaixar').style.display = 'flex';
   });
 
-  // ==========================================
-  // 6. DOWNLOAD DO RESULTADO
-  // ==========================================
-  btnBaixar.addEventListener('click', () => {
+  document.getElementById('btnBaixar').addEventListener('click', () => {
     if (!workbookFinal) return;
-    const dataAtual = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(workbookFinal, `THOTH_PRO_RESULTADO_${dataAtual}.xlsx`);
-    log('Arquivo Excel exportado com sucesso.', 'info');
+    XLSX.writeFile(workbookFinal, `THOTH_PRO_RESULTADO_${new Date().toISOString().split('T')[0]}.xlsx`);
   });
-
 </script>
 </body>
 </html>
