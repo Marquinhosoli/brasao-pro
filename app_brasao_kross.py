@@ -1,6 +1,8 @@
+
 from io import BytesIO
 from pathlib import Path
 from copy import copy
+import math
 import re
 import traceback
 import zipfile
@@ -20,26 +22,32 @@ st.set_page_config(page_title="BRASÃO / KROSS → THOTH (PRO)", page_icon="📦
 BASE_DIR = Path(__file__).resolve().parent
 IGNORE_NAMES = {"", "TOTAL", "TOTAIS", "SUBTOTAL", "SUB-TOTAL", "PRODUTO", "PRODUTOS"}
 
-FIXED_FILE_CANDIDATES = {
-    "MODEL_BRASAO_FRUTAS": [
-        "BRASAO - FRUTAS PRE PEDIDO BRANCO.xlsx",
-        "BRASAO FRUTAS BRANCO.xlsx",
-    ],
-    "MODEL_BRASAO_LEGUMES": [
-        "BRASAO - LEGUMES PRE PEDIDO BRANCO.xlsx",
-        "BRASAO LEGUMES BRANCO.xlsx",
-    ],
-    "MODEL_KROSS_FRUTAS": [
-        "KROSS - FRUTAS PRE PEDIDO BRANCO.xlsx",
-        "KROSS - PRE PEDIDO FRUTAS BRANCO.xlsx",
-    ],
-    "MODEL_KROSS_LEGUMES": [
-        "KROSS - LEGUMES PRE PEDIDO BRANCO.xlsx",
-    ],
-    "BASE_PRODUCTS_FILE": [
-        "base_thoth_app_normalizada_brasao_kross.xlsx",
-    ],
-}
+BASE_PRODUCTS_FILE = BASE_DIR / "base_thoth_app_normalizada_brasao_kross.xlsx"
+
+
+def first_existing_path(*names: str) -> Path:
+    for name in names:
+        path = BASE_DIR / name
+        if path.exists():
+            return path
+    return BASE_DIR / names[0]
+
+
+MODEL_BRASAO_FRUTAS = first_existing_path(
+    "BRASAO - FRUTAS PRE PEDIDO BRANCO.xlsx",
+    "BRASAO FRUTAS BRANCO.xlsx",
+)
+MODEL_BRASAO_LEGUMES = first_existing_path(
+    "BRASAO - LEGUMES PRE PEDIDO BRANCO.xlsx",
+    "BRASAO LEGUMES BRANCO.xlsx",
+)
+MODEL_KROSS_FRUTAS = first_existing_path(
+    "KROSS - FRUTAS PRE PEDIDO BRANCO.xlsx",
+    "KROSS - PRE PEDIDO FRUTAS BRANCO.xlsx",
+)
+MODEL_KROSS_LEGUMES = first_existing_path(
+    "KROSS - LEGUMES PRE PEDIDO BRANCO.xlsx",
+)
 
 STORE_RULES = [
     {
@@ -48,7 +56,7 @@ STORE_RULES = [
         "col_key": "1",
         "display": "Brasão Fernando",
         "signals": ["FERNANDO MACHADO", "CENTRO", "226"],
-        "file_signals": ["FERNANDO"],
+        "name_signals": ["FERNANDO"],
     },
     {
         "store_id": "BRASAO_JARDIM",
@@ -56,7 +64,7 @@ STORE_RULES = [
         "col_key": "2",
         "display": "Brasão Jardim",
         "signals": ["SAO PEDRO", "JARDIM AMERICA", "2199"],
-        "file_signals": ["JARDIM"],
+        "name_signals": ["JARDIM"],
     },
     {
         "store_id": "BRASAO_XAXIM",
@@ -64,7 +72,7 @@ STORE_RULES = [
         "col_key": "3",
         "display": "Brasão Xaxim",
         "signals": ["LUIZ LUNARDI", "XAXIM", "810"],
-        "file_signals": ["XAXIM"],
+        "name_signals": ["XAXIM"],
     },
     {
         "store_id": "BRASAO_AVENIDA",
@@ -72,7 +80,7 @@ STORE_RULES = [
         "col_key": "4",
         "display": "Brasão Avenida",
         "signals": ["RIO DE JANEIRO", "CENTRO", "108", "CHAPECO"],
-        "file_signals": ["AVENIDA"],
+        "name_signals": ["AVENIDA"],
     },
     {
         "store_id": "BRASAO_CD",
@@ -80,7 +88,7 @@ STORE_RULES = [
         "col_key": "CD",
         "display": "Brasão CD",
         "signals": ["RUA GASPAR", "ELDORADO", "153"],
-        "file_signals": ["CD"],
+        "name_signals": ["CD"],
     },
     {
         "store_id": "KROSS_CHAPECO",
@@ -88,7 +96,7 @@ STORE_RULES = [
         "col_key": "1",
         "display": "Kross Atacadista",
         "signals": ["JOHN KENNEDY", "PASSO DOS FORTES", "550"],
-        "file_signals": ["ATACADO", "CHAPECO"],
+        "name_signals": ["KROSS C", "CHAPECO", "ATACADO"],
     },
     {
         "store_id": "KROSS_XAXIM",
@@ -96,7 +104,7 @@ STORE_RULES = [
         "col_key": "2",
         "display": "Kross Xaxim",
         "signals": ["AMELIO PANIZZI", "XAXIM"],
-        "file_signals": ["XAXIM"],
+        "name_signals": ["KROSS XAXIM", "XAXIM"],
     },
 ]
 
@@ -122,18 +130,6 @@ UNIT_PATTERNS = [
 ]
 
 
-NOISE_TOKENS = {
-    "BRASAO", "FRUTA", "FRUTAS", "LEGUME", "LEGUMES", "KROSS", "DE", "DO", "DA",
-    "DEMARCHI", "MARCHI", "SHELF", "IMPORTADO", "IMPORTADA", "NACIONAL", "KG", "UND", "BDJ",
-    "BANDEJA", "UNIDADE", "UNIDADES", "MACO", "MACOS", "BRS", "CX", "CAIXA", "CAIXAS"
-}
-
-CATEGORY_HINTS = {
-    "FRUTAS": {"ABACAXI","ABACATE","AMEIXA","AMORA","BANANA","CAQUI","COCO","FIGO","FRAMBOESA","GOIABA","JACA","KIWI","LARANJA","LIMAO","MACA","MAMAO","MANGA","MELANCIA","MELAO","MEXERICA","MORANGO","NECTARINA","PERA","PESSEGO","PITAYA","TANGERINA","UVA","MARACUJA"},
-    "LEGUMES": {"ABOBORA","ABOBRINHA","ALHO","BATATA","BATATA DOCE","BATATINHA","BERINJELA","BETERRABA","BROCOLIS","BROCOLIS NINJA","BROCOLIS RAMO","CEBOLA","CENOURA","CHUCHU","COUVE","COUVE FLOR","GENGIBRE","INHAME","MANDIOCA","MILHO","PEPINO","PIMENTA","PIMENTAO","QUIABO","RABANETE","REPOLHO","TOMATE","VAGEM"}
-}
-
-
 def norm_text(v):
     if v is None:
         return ""
@@ -151,12 +147,21 @@ def norm_key(v):
     txt = txt.replace("Ó", "O").replace("Õ", "O").replace("Ô", "O")
     txt = txt.replace("Ú", "U")
     txt = txt.replace("Ç", "C")
-    return re.sub(r"\s+", " ", txt).strip()
+    txt = txt.replace("_", " ")
+    txt = re.sub(r"\s+", " ", txt).strip()
+    return txt
 
 
 def parse_number(v):
     if v is None:
         return None
+    if isinstance(v, (int, float)):
+        try:
+            if math.isnan(v):
+                return None
+        except TypeError:
+            pass
+        return float(v)
     txt = norm_text(v)
     if not txt:
         return None
@@ -165,39 +170,25 @@ def parse_number(v):
     if txt in {"", ".", "-", "-."}:
         return None
     try:
-        return float(txt)
+        value = float(txt)
+        if math.isnan(value):
+            return None
+        return value
     except Exception:
         return None
 
 
-def is_missing_number(v):
-    if v is None:
-        return True
-    try:
-        return pd.isna(v)
-    except Exception:
-        return False
+def valid_number(v):
+    num = parse_number(v)
+    return num is not None and num > 0
 
 
 def ceil_div(qtd, base):
-    if is_missing_number(qtd) or is_missing_number(base):
+    qtd = parse_number(qtd)
+    base = parse_number(base)
+    if qtd is None or base is None or base <= 0:
         return 0
-    try:
-        qtd = float(qtd)
-        base = float(base)
-    except Exception:
-        return 0
-    if base <= 0 or qtd <= 0:
-        return 0
-    return int(-(-qtd // base))
-
-
-def resolve_first_existing(candidates):
-    for filename in candidates:
-        path = BASE_DIR / filename
-        if path.exists():
-            return path
-    return None
+    return int(math.ceil(qtd / base))
 
 
 @st.cache_data(show_spinner=False)
@@ -279,30 +270,28 @@ def identify_store(pdf_text: str, file_name: str = ""):
     name = norm_key(Path(file_name).stem)
 
     # prioridade pelo nome do arquivo
-    if "KROSS" in name:
-        if "XAXIM" in name:
-            return next(rule for rule in STORE_RULES if rule["store_id"] == "KROSS_XAXIM")
-        if any(token in name for token in ["ATACADO", "ATACADISTA", "CHAPECO"]):
-            return next(rule for rule in STORE_RULES if rule["store_id"] == "KROSS_CHAPECO")
+    if " CD" in f" {name} " or name.endswith(" CD") or name.startswith("CD "):
+        return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_CD")
+    if "FERNANDO" in name:
+        return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_FERNANDO")
+    if "JARDIM" in name:
+        return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_JARDIM")
+    if "AVENIDA" in name:
+        return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_AVENIDA")
+    if "KROSS" in name and "XAXIM" in name:
+        return next(rule for rule in STORE_RULES if rule["store_id"] == "KROSS_XAXIM")
+    if ("KROSS" in name and ("CHAPECO" in name or "ATACADO" in name)) or name.startswith("KROSS C"):
+        return next(rule for rule in STORE_RULES if rule["store_id"] == "KROSS_CHAPECO")
+    if "XAXIM" in name:
+        # se não disser KROSS, trata como Brasão Xaxim
+        return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_XAXIM")
 
-    if "BRASAO" in name or "BRASAO" not in name and any(token in name for token in ["FERNANDO", "JARDIM", "AVENIDA", "CD"]):
-        if "CD" in name:
-            return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_CD")
-        if "FERNANDO" in name:
-            return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_FERNANDO")
-        if "JARDIM" in name:
-            return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_JARDIM")
-        if "AVENIDA" in name:
-            return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_AVENIDA")
-        if "XAXIM" in name and "KROSS" not in name:
-            return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_XAXIM")
-
-    # fallback pelo conteúdo do PDF
+    # fallback pelo conteúdo
     for rule in STORE_RULES:
         if all(signal in text for signal in rule["signals"]):
             return rule
 
-    raise ValueError(f"Não consegui identificar a loja/unidade pelo cabeçalho do PDF: {file_name}")
+    raise ValueError(f"Não consegui identificar a loja/unidade pelo PDF: {file_name}")
 
 
 def detect_unit(desc: str) -> str:
@@ -371,51 +360,6 @@ def parse_order_items(pdf_text: str) -> pd.DataFrame:
     return df
 
 
-def tokenize_desc(desc: str):
-    key = norm_key(desc)
-    key = re.sub(r"\b\d+[.,]?\d*G\b", " ", key)
-    key = re.sub(r"\b\d+[.,]?\d*KG\b", " ", key)
-    key = re.sub(r"\b\d+[.,]?\d*ML\b", " ", key)
-    key = re.sub(r"\b\d+[.,]?\d*L\b", " ", key)
-    key = re.sub(r"[^A-Z0-9 ]", " ", key)
-    tokens = [t for t in key.split() if t and t not in NOISE_TOKENS and not t.isdigit()]
-    return tokens
-
-
-def cleaned_product_name(desc: str) -> str:
-    key = norm_key(desc)
-    key = re.sub(r"\bSHELF\s*\d+\b", " ", key)
-    key = re.sub(r"\b\d+[.,]?\d*G\b", " ", key)
-    key = re.sub(r"\b\d+[.,]?\d*ML\b", " ", key)
-    key = re.sub(r"\b(IMPORTADO|IMPORTADA|NACIONAL|DEMARCHI|MARCHI|BRASAO|KROSS|FRUTA|FRUTAS|LEGUME|LEGUMES)\b", " ", key)
-    key = re.sub(r"\s+", " ", key).strip()
-    return key.title() if key else clean_desc(desc)
-
-
-def infer_category_from_desc(desc: str, base_df=None) -> str:
-    key = norm_key(desc)
-    best_cat = None
-    best_score = 0
-    tokens = set(tokenize_desc(desc))
-    if base_df is not None and tokens:
-        for _, r in base_df.iterrows():
-            rtokens = set(tokenize_desc(r["produto_base"]))
-            if not rtokens:
-                continue
-            score = len(tokens & rtokens)
-            if score > best_score:
-                best_score = score
-                best_cat = norm_key(r["categoria"])
-        if best_score >= 1 and best_cat:
-            return best_cat
-
-    for cat, words in CATEGORY_HINTS.items():
-        for word in words:
-            if word in key:
-                return cat
-    return "FRUTAS"
-
-
 def match_base_item(desc: str, base_df: pd.DataFrame):
     key = norm_key(desc)
 
@@ -427,167 +371,61 @@ def match_base_item(desc: str, base_df: pd.DataFrame):
         if key in row["sinonimos_key"]:
             return row
 
-    desc_tokens = set(tokenize_desc(desc))
-    if not desc_tokens:
-        return None
-
-    # contains mais seguro: exige pelo menos 2 tokens relevantes em comum
-    contains_candidates = []
-    for _, row in base_df.iterrows():
-        row_key = row["produto_key"]
-        row_tokens = set(tokenize_desc(row["produto_base"]))
-        overlap = len(desc_tokens & row_tokens)
-        if overlap >= 2 and (row_key in key or key in row_key):
-            contains_candidates.append((overlap, len(row_key), row))
-        for syn in row.get("sinonimos", []) or []:
-            syn_key = norm_key(syn)
-            syn_tokens = set(tokenize_desc(syn))
-            syn_overlap = len(desc_tokens & syn_tokens)
-            if syn_overlap >= 2 and (syn_key in key or key in syn_key):
-                contains_candidates.append((syn_overlap, len(syn_key), row))
-
-    if contains_candidates:
-        contains_candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
-        return contains_candidates[0][2]
-
-    # similaridade por tokens: bem mais conservadora para não converter produto errado
-    best_row = None
-    best_overlap = 0
-    best_ratio = 0.0
-
-    for _, row in base_df.iterrows():
-        options = [row["produto_base"]] + list(row.get("sinonimos", []) or [])
-        for option in options:
-            row_tokens = set(tokenize_desc(option))
-            if not row_tokens:
-                continue
-            overlap = len(desc_tokens & row_tokens)
-            ratio = overlap / max(len(desc_tokens), len(row_tokens))
-            if overlap > best_overlap or (overlap == best_overlap and ratio > best_ratio):
-                best_overlap = overlap
-                best_ratio = ratio
-                best_row = row
-
-    if best_row is not None:
-        # 2+ tokens e cobertura mínima razoável
-        if best_overlap >= 2 and best_ratio >= 0.5:
-            return best_row
-        # caso de nome curto e muito específico
-        if len(desc_tokens) == 1 and best_overlap == 1 and best_ratio == 1:
-            return best_row
+    # tentativa por contenção mais rígida
+    contains = base_df[base_df["produto_key"].apply(lambda x: x and (x in key or key in x))]
+    if not contains.empty:
+        contains = contains.assign(_len=contains["produto_key"].map(len)).sort_values("_len", ascending=False)
+        return contains.iloc[0]
 
     return None
-def infer_boxes_without_base(row):
-    unit = norm_key(row.get("UnidadeDetectada"))
-    qtd = choose_conversion_quantity(row)
-    emb = row.get("QtdeEmb")
-    if is_missing_number(qtd):
-        return 0, "quantidade ausente"
-    try:
-        qtd = float(qtd)
-    except Exception:
-        return 0, "quantidade invalida"
-    if qtd <= 0:
-        return 0, "quantidade zerada"
 
-    # Sem base, só faz conversão automática quando existir fator confiável no PDF.
-    if not is_missing_number(emb):
-        try:
-            emb = float(emb)
-        except Exception:
-            emb = None
-        if emb and emb > 0 and qtd >= emb:
-            return ceil_div(qtd, emb), f"conversao automatica via QtdeEmb ({unit or 'SEM_UNIDADE'})"
 
-    # Tratar como caixa direta só quando o PDF já vier claramente em caixas.
-    if unit == "CX":
-        return int(qtd), "quantidade ja em caixas"
+def choose_quantity_for_conversion(qtd: float, qtd_emb: float, modo: str, unit: str) -> float:
+    qtd = parse_number(qtd) or 0
+    qtd_emb = parse_number(qtd_emb) or 0
+    modo = norm_key(modo)
+    unit = norm_key(unit)
 
-    return 0, f"sem base e sem fator de conversao ({unit or 'SEM_UNIDADE'})"
+    if modo == "CAIXA" or unit == "CX":
+        return qtd if qtd > 0 else qtd_emb
 
-def choose_conversion_quantity(row, base_row=None):
-    """
-    Escolhe a quantidade mais confiável para conversão.
-    Em muitos PDFs do Brasão/Kross, Qtde e QtdeEmb podem vir invertidos
-    ou um deles representar apenas a embalagem. Para conversão por peso,
-    unidade ou bandeja, usamos o maior valor positivo entre os dois campos.
-    """
-    q1 = row.get("Qtde")
-    q2 = row.get("QtdeEmb")
+    # para peso, unidade e bandeja, usa o maior valor.
+    # isso corrige casos como "1 400" onde 400 é o total real.
+    return max(qtd, qtd_emb)
 
-    vals = []
-    for v in (q1, q2):
-        if not is_missing_number(v):
-            try:
-                f = float(v)
-                if f > 0:
-                    vals.append(f)
-            except Exception:
-                pass
 
-    if not vals:
-        return 0.0
-
-    modo = norm_key(base_row.get("modo", "")) if base_row is not None else ""
-    unit = norm_key(row.get("UnidadeDetectada", ""))
-
-    # Para conversão em peso/unidade/bandeja, a quantidade pedida costuma ser
-    # o maior dos dois campos numéricos. Isso corrige casos como 1 e 400,
-    # onde 400kg é a quantidade real e 1 é apenas um marcador de embalagem.
-    if modo in {"PESO", "UNIDADE", "UND", "BANDEJA", "BDJ"} or unit in {"KG", "UND", "BDJ"}:
-        return max(vals)
-
-    # Para caixa direta, preserva o campo Qtde quando válido.
-    if not is_missing_number(q1):
-        try:
-            q1 = float(q1)
-            if q1 > 0:
-                return q1
-        except Exception:
-            pass
-
-    return max(vals)
-
-def convert_to_boxes(row, base_row) -> int:
+def convert_to_boxes(qtd: float, unit: str, base_row, qtd_emb: float = None) -> int:
     modo = norm_key(base_row.get("modo", ""))
-    unit = norm_key(row.get("UnidadeDetectada", ""))
+    unit = norm_key(unit)
+    qtd_real = choose_quantity_for_conversion(qtd, qtd_emb, modo, unit)
 
-    qtd = choose_conversion_quantity(row, base_row)
-    if is_missing_number(qtd):
+    if qtd_real <= 0:
         return 0
 
-    try:
-        qtd = float(qtd)
-    except Exception:
-        return 0
-
-    if qtd <= 0:
-        return 0
-
-    peso_caixa = base_row.get("peso_caixa")
-    itens_por_caixa = base_row.get("itens_por_caixa")
-    bandejas_por_caixa = base_row.get("bandejas_por_caixa")
-
-    # Prioridade total para o modo da base. Isso evita erro tipo Laranja Kinkan virar 400 caixas.
     if modo == "CAIXA":
-        return int(qtd)
-    if modo == "PESO":
-        return ceil_div(qtd, peso_caixa)
-    if modo in {"UNIDADE", "UND"}:
-        return ceil_div(qtd, itens_por_caixa)
-    if modo in {"BANDEJA", "BDJ"}:
-        return ceil_div(qtd, bandejas_por_caixa)
+        return int(round(qtd_real))
 
-    # Sem modo definido na base, cai para a unidade detectada no PDF.
-    if unit == "CX":
-        return int(qtd)
+    if modo == "PESO":
+        return ceil_div(qtd_real, base_row.get("peso_caixa"))
+
+    if modo in {"UNIDADE", "UND"}:
+        return ceil_div(qtd_real, base_row.get("itens_por_caixa"))
+
+    if modo in {"BANDEJA", "BDJ"}:
+        return ceil_div(qtd_real, base_row.get("bandejas_por_caixa"))
+
+    # fallback se a base não informou o modo, tenta pela unidade detectada
     if unit == "KG":
-        return ceil_div(qtd, peso_caixa)
+        return ceil_div(qtd_real, base_row.get("peso_caixa"))
     if unit == "UND":
-        return ceil_div(qtd, itens_por_caixa)
+        return ceil_div(qtd_real, base_row.get("itens_por_caixa"))
     if unit == "BDJ":
-        return ceil_div(qtd, bandejas_por_caixa)
+        return ceil_div(qtd_real, base_row.get("bandejas_por_caixa"))
+    if unit == "CX":
+        return int(round(qtd_real))
+
     return 0
+
 
 def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFrame):
     out_rows = []
@@ -595,60 +433,46 @@ def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFr
 
     for _, row in order_df.iterrows():
         base_row = match_base_item(row["DescricaoOriginal"], base_df)
-        conversion_note = ""
+        if base_row is None:
+            errors.append({
+                "loja": store_rule["display"],
+                "produto": row["DescricaoOriginal"],
+                "erro": "Produto não encontrado na base",
+            })
+            continue
 
-        if base_row is not None:
-            caixas = convert_to_boxes(row, base_row)
-            produto_modelo = base_row["produto_base"]
-            produto_key = base_row["produto_key"]
-            categoria = norm_key(base_row["categoria"])
-
-            if caixas <= 0:
-                # Se a base existe mas o fator está faltando, tenta QtdeEmb sem trocar o produto.
-                caixas, conversion_note = infer_boxes_without_base(row)
-                if caixas <= 0:
-                    errors.append({
-                        "loja": store_rule["display"],
-                        "produto": row["DescricaoOriginal"],
-                        "erro": f"Falha na conversão para caixa ({row['UnidadeDetectada']})",
-                    })
-                    continue
-                conversion_note = f"fallback do PDF para produto cadastrado: {conversion_note}"
-        else:
-            caixas, conversion_note = infer_boxes_without_base(row)
-            if caixas <= 0:
-                errors.append({
-                    "loja": store_rule["display"],
-                    "produto": row["DescricaoOriginal"],
-                    "erro": "Produto não encontrado na base e sem conversão automática",
-                })
-                continue
-            produto_modelo = cleaned_product_name(row["DescricaoOriginal"])
-            produto_key = norm_key(produto_modelo)
-            categoria = infer_category_from_desc(row["DescricaoOriginal"], base_df)
+        caixas = convert_to_boxes(
+            row["Qtde"],
+            row["UnidadeDetectada"],
+            base_row,
+            row["QtdeEmb"],
+        )
+        if caixas <= 0:
+            errors.append({
+                "loja": store_rule["display"],
+                "produto": row["DescricaoOriginal"],
+                "erro": f"Falha na conversão para caixa ({row['UnidadeDetectada']})",
+            })
+            continue
 
         out_rows.append({
             "Grupo": store_rule["group"],
             "LojaKey": store_rule["col_key"],
             "LojaNome": store_rule["display"],
-            "Categoria": categoria,
-            "ProdutoModelo": produto_modelo,
-            "ProdutoKey": produto_key,
+            "Categoria": norm_key(base_row["categoria"]),
+            "ProdutoModelo": base_row["produto_base"],
+            "ProdutoKey": base_row["produto_key"],
             "Caixas": caixas,
             "CodigoPedido": row["CodigoPedido"],
             "CodFornPedido": row["CodFornPedido"],
             "PrecoPedido": row["PrecoPedido"],
-            "ObservacaoConversao": conversion_note,
-            "DescricaoOriginal": row["DescricaoOriginal"],
-            "QtdeOriginal": row["Qtde"],
-            "QtdeEmb": row["QtdeEmb"],
-            "UnidadeDetectada": row["UnidadeDetectada"],
-            "AutoAdicionado": "SIM" if base_row is None else "NAO",
         })
 
     out_df = pd.DataFrame(out_rows)
     errors_df = pd.DataFrame(errors)
     return out_df, errors_df
+
+
 def group_to_matrix(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame()
@@ -691,6 +515,8 @@ def extract_store_number_from_model(v1, v2):
         return "3"
     if "LOJA 4" in combo or re.fullmatch(r"4", c2):
         return "4"
+    if "CD" in combo:
+        return "CD"
     return None
 
 
@@ -834,31 +660,6 @@ def build_prices_sheet(df: pd.DataFrame) -> bytes:
     return out.getvalue()
 
 
-def build_auto_added_sheet(df: pd.DataFrame) -> bytes:
-    cols = [
-        "Grupo", "LojaNome", "Categoria", "ProdutoModelo", "DescricaoOriginal", "UnidadeDetectada",
-        "QtdeOriginal", "QtdeEmb", "Caixas", "CodigoPedido", "CodFornPedido", "PrecoPedido",
-        "ObservacaoConversao", "AutoAdicionado"
-    ]
-    if df.empty or "AutoAdicionado" not in df.columns:
-        base = pd.DataFrame(columns=cols)
-    else:
-        base = df[df["AutoAdicionado"] == "SIM"].copy()
-        for c in cols:
-            if c not in base.columns:
-                base[c] = ""
-        base = base[cols].sort_values(["Grupo", "LojaNome", "ProdutoModelo"])
-
-    out = BytesIO()
-    with pd.ExcelWriter(out, engine="openpyxl") as writer:
-        base.to_excel(writer, sheet_name="AUTO_ADICIONADOS", index=False)
-        ws = writer.sheets["AUTO_ADICIONADOS"]
-        for letter, width in {"A":14,"B":22,"C":12,"D":30,"E":42,"F":14,"G":12,"H":12,"I":10,"J":12,"K":12,"L":12,"M":32,"N":14}.items():
-            ws.column_dimensions[letter].width = width
-    out.seek(0)
-    return out.getvalue()
-
-
 def build_cd_workbook(frutas_matrix: pd.DataFrame, legumes_matrix: pd.DataFrame) -> bytes:
     out = BytesIO()
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
@@ -869,20 +670,18 @@ def build_cd_workbook(frutas_matrix: pd.DataFrame, legumes_matrix: pd.DataFrame)
 
 
 def ensure_fixed_files():
-    resolved = {}
     missing = []
-
-    for key, candidates in FIXED_FILE_CANDIDATES.items():
-        path = resolve_first_existing(candidates)
-        if path is None:
-            missing.append(candidates[0])
-        else:
-            resolved[key] = path
-
+    for path in [
+        BASE_PRODUCTS_FILE,
+        MODEL_BRASAO_FRUTAS,
+        MODEL_BRASAO_LEGUMES,
+        MODEL_KROSS_FRUTAS,
+        MODEL_KROSS_LEGUMES,
+    ]:
+        if not path.exists():
+            missing.append(path.name)
     if missing:
         raise FileNotFoundError("Arquivos fixos não encontrados no repositório: " + ", ".join(missing))
-
-    return resolved
 
 
 def build_zip(files_dict: dict) -> bytes:
@@ -905,7 +704,7 @@ with st.sidebar:
     st.info("Fluxos suportados: Brasão lojas, Brasão CD e Kross.")
     st.info("Brasão Fernando = Loja 1 | Jardim = Loja 2 | Xaxim = Loja 3 | Avenida = Loja 4.")
     st.info("Kross Atacadista = Loja 1 | Kross Xaxim = Loja 2.")
-    st.info("Base fixa: base_thoth_app_normalizada_brasao_kross.xlsx")
+    st.info(f"Base fixa: {BASE_PRODUCTS_FILE.name}")
 
 pdf_files = st.file_uploader("Pedidos PDF", type=["pdf"], accept_multiple_files=True)
 
@@ -914,8 +713,8 @@ if st.button("PROCESSAR", use_container_width=True, type="primary"):
         st.error("Envie ao menos um PDF.")
     else:
         try:
-            fixed_files = ensure_fixed_files()
-            base_df = load_base_from_disk(str(fixed_files["BASE_PRODUCTS_FILE"]))
+            ensure_fixed_files()
+            base_df = load_base_from_disk(str(BASE_PRODUCTS_FILE))
 
             transformed_parts = []
             all_errors = []
@@ -977,21 +776,21 @@ if st.button("PROCESSAR", use_container_width=True, type="primary"):
             cd_legumes_matrix = group_to_matrix(cd_legumes)
 
             files_to_zip = {
-                "BRASAO_FRUTAS_Thoth.xlsx": write_output(fixed_files["MODEL_BRASAO_FRUTAS"], brasao_frutas_matrix, "BRASAO"),
-                "BRASAO_LEGUMES_Thoth.xlsx": write_output(fixed_files["MODEL_BRASAO_LEGUMES"], brasao_legumes_matrix, "BRASAO"),
-                "KROSS_FRUTAS_Thoth.xlsx": write_output(fixed_files["MODEL_KROSS_FRUTAS"], kross_frutas_matrix, "KROSS"),
-                "KROSS_LEGUMES_Thoth.xlsx": write_output(fixed_files["MODEL_KROSS_LEGUMES"], kross_legumes_matrix, "KROSS"),
+                "BRASAO_FRUTAS_Thoth.xlsx": write_output(MODEL_BRASAO_FRUTAS, brasao_frutas_matrix, "BRASAO"),
+                "BRASAO_LEGUMES_Thoth.xlsx": write_output(MODEL_BRASAO_LEGUMES, brasao_legumes_matrix, "BRASAO"),
+                "KROSS_FRUTAS_Thoth.xlsx": write_output(MODEL_KROSS_FRUTAS, kross_frutas_matrix, "KROSS"),
+                "KROSS_LEGUMES_Thoth.xlsx": write_output(MODEL_KROSS_LEGUMES, kross_legumes_matrix, "KROSS"),
                 "BRASAO_CD.xlsx": build_cd_workbook(cd_frutas_matrix, cd_legumes_matrix),
                 "BRASAO_PRECOS.xlsx": build_prices_sheet(brasao_df),
                 "KROSS_PRECOS.xlsx": build_prices_sheet(kross_df),
                 "BRASAO_CD_PRECOS.xlsx": build_prices_sheet(cd_df),
             }
 
+            missing_units = []
             expected_ids = {
                 "BRASAO_FERNANDO", "BRASAO_JARDIM", "BRASAO_XAXIM", "BRASAO_AVENIDA",
                 "BRASAO_CD", "KROSS_CHAPECO", "KROSS_XAXIM"
             }
-            missing_units = []
             for rule in STORE_RULES:
                 if rule["store_id"] in expected_ids and rule["store_id"] not in seen_store_ids:
                     missing_units.append({"loja": rule["display"], "produto": "", "erro": "PDF da unidade não enviado"})
