@@ -159,7 +159,8 @@ def parse_number(v):
 
 
 def ceil_div(qtd, base):
-    if qtd is None or base in (None, 0):
+    # Correção: Uso do pd.isna() para lidar com valores nulos ou NaN do Pandas
+    if pd.isna(qtd) or pd.isna(base) or base == 0:
         return 0
     return int(-(-qtd // base))
 
@@ -366,8 +367,9 @@ def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
     modo = norm_key(base_row.get("modo", ""))
     unit = norm_key(unit)
 
+    # Correção: Uso do pd.isna e pd.notna para evitar tratar NaN como truthy value
     if modo == "CAIXA" or unit == "CX":
-        return int(qtd)
+        return int(qtd) if not pd.isna(qtd) else 0
     if modo == "PESO" or unit == "KG":
         return ceil_div(qtd, base_row.get("peso_caixa"))
     if modo in {"UNIDADE", "UND"} or unit == "UND":
@@ -375,11 +377,11 @@ def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
     if modo in {"BANDEJA", "BDJ"} or unit == "BDJ":
         return ceil_div(qtd, base_row.get("bandejas_por_caixa"))
 
-    if unit == "KG" and base_row.get("peso_caixa"):
+    if unit == "KG" and pd.notna(base_row.get("peso_caixa")):
         return ceil_div(qtd, base_row.get("peso_caixa"))
-    if unit == "UND" and base_row.get("itens_por_caixa"):
+    if unit == "UND" and pd.notna(base_row.get("itens_por_caixa")):
         return ceil_div(qtd, base_row.get("itens_por_caixa"))
-    if unit == "BDJ" and base_row.get("bandejas_por_caixa"):
+    if unit == "BDJ" and pd.notna(base_row.get("bandejas_por_caixa")):
         return ceil_div(qtd, base_row.get("bandejas_por_caixa"))
     return 0
 
