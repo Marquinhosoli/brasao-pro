@@ -1,4 +1,3 @@
-
 from io import BytesIO
 from pathlib import Path
 from copy import copy
@@ -320,8 +319,6 @@ def identify_store(pdf_text: str, file_name: str = ""):
             return rule
 
     raise ValueError(f"Não consegui identificar a loja/unidade no PDF: {file_name}")
-
-
 def detect_unit(desc: str) -> str:
     key = norm_key(desc)
     for pattern, unit in UNIT_PATTERNS:
@@ -339,6 +336,7 @@ def normalize_desc_for_match(desc: str) -> str:
     key = re.sub(r"\b\d+(?:[.,]\d+)?\s*G\b", " ", key)
     key = re.sub(r"\b\d+(?:[.,]\d+)?\s*KG\b", " ", key)
     key = re.sub(r"\bSHELF\s*\d+\b", " ", key)
+    key = re.sub(r"\b(IMPORTADO|IMPORTADA|NACIONAL|GRECIA|GRECIA)\b", lambda m: m.group(1), key)
 
     words = []
     for token in re.split(r"\W+", key):
@@ -350,8 +348,6 @@ def normalize_desc_for_match(desc: str) -> str:
             continue
         words.append(token)
     return " ".join(words).strip()
-
-
 def is_stop_line(line: str) -> bool:
     key = norm_key(line)
     return any(marker in key for marker in ORDER_STOP_MARKERS)
@@ -416,32 +412,55 @@ def match_base_item(desc: str, base_df: pd.DataFrame):
     if not exact.empty:
         return exact.iloc[0]
 
+    # 1) sinônimo exato
     for _, row in base_df.iterrows():
         if key in row["sinonimos_key"] or row["produto_key"] == key:
             return row
 
-    for _, row in base_df.iterrows():
-        for syn in row["sinonimos_key"]:
-            if syn and (syn in key or key in syn):
-                return row
-
-    contains = base_df[base_df["produto_key"].apply(lambda x: x in key or key in x)]
-    if not contains.empty:
-        contains = contains.assign(_len=contains["produto_key"].map(len)).sort_values("_len", ascending=False)
-        return contains.iloc[0]
-
+    # 2) sinônimo por contenção
+    candidates = []
     key_tokens = [t for t in re.split(r"\W+", key) if t and t not in REMOVAL_TOKENS and len(t) > 1]
-    best_row = None
-    best_score = 0
+    key_set = set(key_tokens)
+
     for _, row in base_df.iterrows():
-        tokens = set(row["produto_tokens"])
-        score = len(tokens.intersection(key_tokens))
-        if score > best_score and score >= max(1, min(2, len(tokens))):
-            best_score = score
-            best_row = row
-    return best_row
+        prod_key = row["produto_key"]
+        syns = row["sinonimos_key"]
 
+        score = 0
+        if prod_key and (prod_key in key or key in prod_key):
+            score += 100
 
+        for syn in syns:
+            if syn and (syn in key or key in syn):
+                score += 90
+                break
+
+        row_tokens = set(row["produto_tokens"])
+        overlap = len(key_set.intersection(row_tokens))
+        if overlap:
+            score += overlap * 10
+
+        if score > 0:
+            candidates.append((score, len(prod_key), row))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    best = candidates[0][2]
+
+    # exige pelo menos 2 tokens em comum para nomes grandes, ou score alto de contenção
+    top_score = candidates[0][0]
+    if top_score >= 90:
+        return best
+
+    overlap = len(key_set.intersection(set(best["produto_tokens"])))
+    if len(key_tokens) <= 2 and overlap >= 1:
+        return best
+    if len(key_tokens) >= 3 and overlap >= 2:
+        return best
+
+    return None
 def choose_quantity(qtd: float, qtd_emb: float, modo: str, detected_unit: str) -> float:
     qtd = parse_number(qtd) or 0
     qtd_emb = parse_number(qtd_emb) or 0
@@ -451,13 +470,12 @@ def choose_quantity(qtd: float, qtd_emb: float, modo: str, detected_unit: str) -
     if modo == "CAIXA":
         return qtd if qtd > 0 else qtd_emb
 
+    # para KG/UND/BDJ, quando o pdf vier no formato 1 | 400, usar o maior valor
     if qtd_emb > qtd:
         return qtd_emb
     if qtd > 0:
         return qtd
     return qtd_emb
-
-
 def convert_to_boxes(row, base_row):
     modo = norm_key(base_row.get("modo", ""))
     unit = norm_key(row.get("UnidadeDetectada", ""))
@@ -466,36 +484,46 @@ def convert_to_boxes(row, base_row):
     qtd_real = choose_quantity(qtd, qtd_emb, modo, unit)
 
     if modo == "CAIXA":
-        return int(round(qtd_real)) if qtd_real > 0 else 0, qtd_real
+        return (int(math.ceil(qtd_real)) if qtd_real > 0 else 0), qtd_real, None
 
     if modo == "PESO":
         peso = safe_positive(base_row.get("peso_caixa"))
-        return ceil_div(qtd_real, peso), qtd_real
+        if not peso:
+            return 0, qtd_real, "BASE INCOMPLETA: peso_caixa"
+        return ceil_div(qtd_real, peso), qtd_real, None
 
     if modo in {"UNIDADE", "UND"}:
         itens = safe_positive(base_row.get("itens_por_caixa"))
-        return ceil_div(qtd_real, itens), qtd_real
+        if not itens:
+            return 0, qtd_real, "BASE INCOMPLETA: itens_por_caixa"
+        return ceil_div(qtd_real, itens), qtd_real, None
 
     if modo in {"BANDEJA", "BDJ"}:
         bdj = safe_positive(base_row.get("bandejas_por_caixa"))
-        return ceil_div(qtd_real, bdj), qtd_real
+        if not bdj:
+            return 0, qtd_real, "BASE INCOMPLETA: bandejas_por_caixa"
+        return ceil_div(qtd_real, bdj), qtd_real, None
 
-    # fallback usando a unidade detectada
+    # fallback pela unidade detectada, mas também bloqueando base incompleta
     if unit == "KG":
         peso = safe_positive(base_row.get("peso_caixa"))
-        return ceil_div(qtd_real, peso), qtd_real
+        if not peso:
+            return 0, qtd_real, "BASE INCOMPLETA: peso_caixa"
+        return ceil_div(qtd_real, peso), qtd_real, None
     if unit == "UND":
         itens = safe_positive(base_row.get("itens_por_caixa"))
-        return ceil_div(qtd_real, itens), qtd_real
+        if not itens:
+            return 0, qtd_real, "BASE INCOMPLETA: itens_por_caixa"
+        return ceil_div(qtd_real, itens), qtd_real, None
     if unit == "BDJ":
         bdj = safe_positive(base_row.get("bandejas_por_caixa"))
-        return ceil_div(qtd_real, bdj), qtd_real
+        if not bdj:
+            return 0, qtd_real, "BASE INCOMPLETA: bandejas_por_caixa"
+        return ceil_div(qtd_real, bdj), qtd_real, None
     if unit == "CX":
-        return int(round(qtd_real)) if qtd_real > 0 else 0, qtd_real
+        return (int(math.ceil(qtd_real)) if qtd_real > 0 else 0), qtd_real, None
 
-    return 0, qtd_real
-
-
+    return 0, qtd_real, "BASE INCOMPLETA: modo/unidade sem regra"
 def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFrame):
     out_rows = []
     errors = []
@@ -510,15 +538,13 @@ def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFr
             })
             continue
 
-        caixas, qtd_real = convert_to_boxes(row, base_row)
+        caixas, qtd_real, motivo = convert_to_boxes(row, base_row)
         if caixas <= 0:
+            detalhe = motivo or f"Falha na conversão para caixa ({row['UnidadeDetectada']})"
             errors.append({
                 "loja": store_rule["display"],
                 "produto": row["DescricaoOriginal"],
-                "erro": (
-                    f"Falha na conversão para caixa ({row['UnidadeDetectada']}) "
-                    f"[qtd={row['Qtde']} emb={row['QtdeEmb']} qtd_real={qtd_real}]"
-                ),
+                "erro": f"{detalhe} [qtd={row['Qtde']} emb={row['QtdeEmb']} qtd_real={qtd_real}]",
             })
             continue
 
@@ -538,8 +564,6 @@ def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFr
     out_df = pd.DataFrame(out_rows)
     errors_df = pd.DataFrame(errors)
     return out_df, errors_df
-
-
 def group_to_matrix(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame()
