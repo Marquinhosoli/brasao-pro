@@ -159,9 +159,16 @@ def parse_number(v):
 
 
 def ceil_div(qtd, base):
-    if qtd is None or base in (None, 0):
+    # Se a quantidade for inválida, retorna 0
+    if pd.isna(qtd) or qtd is None or qtd == 0:
         return 0
-    return int(-(-qtd // base))
+    
+    # Se a base não tiver preenchido o fator de conversão (peso, itens, etc), 
+    # forçamos a base para 1. Assim a quantidade original vai pra planilha sem zerar o item.
+    if pd.isna(base) or base in (None, 0, ""):
+        base = 1
+        
+    return int(-(-float(qtd) // float(base)))
 
 
 def resolve_first_existing(candidates):
@@ -250,7 +257,6 @@ def identify_store(pdf_text: str, file_name: str = ""):
     text = norm_key(pdf_text)
     name = norm_key(Path(file_name).stem)
 
-    # prioridade pelo nome do arquivo
     if "KROSS" in name:
         if "XAXIM" in name:
             return next(rule for rule in STORE_RULES if rule["store_id"] == "KROSS_XAXIM")
@@ -269,7 +275,6 @@ def identify_store(pdf_text: str, file_name: str = ""):
         if "XAXIM" in name and "KROSS" not in name:
             return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_XAXIM")
 
-    # fallback pelo conteúdo do PDF
     for rule in STORE_RULES:
         if all(signal in text for signal in rule["signals"]):
             return rule
@@ -366,22 +371,31 @@ def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
     modo = norm_key(base_row.get("modo", ""))
     unit = norm_key(unit)
 
-    if modo == "CAIXA" or unit == "CX":
+    if pd.isna(qtd) or qtd is None:
+        return 0
+
+    # Tenta resolver de forma segura usando a regra da BASE primeiro
+    if modo == "CAIXA":
         return int(qtd)
-    if modo == "PESO" or unit == "KG":
+    if modo == "PESO":
         return ceil_div(qtd, base_row.get("peso_caixa"))
-    if modo in {"UNIDADE", "UND"} or unit == "UND":
+    if modo in {"UNIDADE", "UND"}:
         return ceil_div(qtd, base_row.get("itens_por_caixa"))
-    if modo in {"BANDEJA", "BDJ"} or unit == "BDJ":
+    if modo in {"BANDEJA", "BDJ"}:
         return ceil_div(qtd, base_row.get("bandejas_por_caixa"))
 
-    if unit == "KG" and base_row.get("peso_caixa"):
+    # Se a base não tem 'modo' preenchido, tenta descobrir usando a Unidade do PDF
+    if unit == "CX":
+        return int(qtd)
+    if unit == "KG":
         return ceil_div(qtd, base_row.get("peso_caixa"))
-    if unit == "UND" and base_row.get("itens_por_caixa"):
+    if unit == "UND":
         return ceil_div(qtd, base_row.get("itens_por_caixa"))
-    if unit == "BDJ" and base_row.get("bandejas_por_caixa"):
+    if unit == "BDJ":
         return ceil_div(qtd, base_row.get("bandejas_por_caixa"))
-    return 0
+
+    # Se nada bater, joga o número de quantidade original pra não perder a mercadoria
+    return int(qtd)
 
 
 def transform_items(order_df: pd.DataFrame, store_rule: dict, base_df: pd.DataFrame):
