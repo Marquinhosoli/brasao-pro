@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THOTH PRO Produção Final</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:#121a31;
+      --panel-2:#17213d;
+      --line:#29385f;
+      --text:#e8eefc;
+      --muted:#a6b3d4;
+      --primary:#4f8cff;
+      --primary-2:#6aa2ff;
+      --ok:#23c483;
+      --warn:#ffb020;
+      --danger:#ff6b6b;
+      --shadow:0 16px 40px rgba(0,0,0,.28);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,Segoe UI,Arial,sans-serif;
+      background:linear-gradient(180deg,#0a1020 0%,#111938 100%);
+      color:var(--text);
+      min-height:100vh;
+    }
+    .wrap{
+      max-width:1200px;
+      margin:0 auto;
+      padding:24px;
+    }
+    .hero{
+      display:grid;
+      grid-template-columns:1.2fr .8fr;
+      gap:18px;
+      margin-bottom:18px;
+    }
+    .card{
+      background:rgba(18,26,49,.92);
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:var(--shadow);
+      border-radius:var(--radius);
+      padding:20px;
+      backdrop-filter: blur(8px);
+    }
+    h1,h2,h3,p{margin:0}
+    h1{font-size:32px;line-height:1.1;margin-bottom:10px}
+    h2{font-size:18px;margin-bottom:14px}
+    h3{font-size:15px;margin-bottom:10px;color:var(--muted)}
+    .muted{color:var(--muted)}
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(12,1fr);
+      gap:18px;
+    }
+    .span-4{grid-column:span 4}
+    .span-6{grid-column:span 6}
+    .span-8{grid-column:span 8}
+    .span-12{grid-column:span 12}
+    .stat{
+      background:linear-gradient(180deg,var(--panel-2),#101831);
+      border:1px solid rgba(255,255,255,.06);
+      border-radius:16px;
+      padding:16px;
+    }
+    .stat .k{font-size:28px;font-weight:800;margin-top:6px}
+    .toolbar{
+      display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+    }
+    button,.fake-input,label.selectlike{
+      border:none;
+      border-radius:14px;
+      padding:12px 16px;
+      font-weight:700;
+      cursor:pointer;
+      transition:.18s ease;
+      font-size:14px;
+    }
+    button.primary{
+      background:linear-gradient(135deg,var(--primary),var(--primary-2));
+      color:white;
+    }
+    button.secondary{
+      background:#22315a;
+      color:var(--text);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    button:hover{transform:translateY(-1px)}
+    input[type="file"]{display:none}
+    .fake-input{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      background:#22315a;
+      color:var(--text);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .pillrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+    .pill{
+      padding:8px 10px;border-radius:999px;font-size:12px;font-weight:700;
+      background:#1b2748;color:var(--muted);border:1px solid rgba(255,255,255,.08);
+    }
+    .ok{color:var(--ok)}
+    .warn{color:var(--warn)}
+    .danger{color:var(--danger)}
+    table{
+      width:100%;border-collapse:collapse;background:#0f1730;border-radius:14px;overflow:hidden;
+    }
+    th,td{
+      padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06);text-align:left;font-size:13px;
+    }
+    th{background:#182445;color:#dbe7ff;position:sticky;top:0}
+    tbody tr:hover{background:rgba(255,255,255,.03)}
+    .table-wrap{max-height:420px;overflow:auto;border-radius:14px;border:1px solid rgba(255,255,255,.08)}
+    .log{
+      white-space:pre-wrap;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-size:12px;
+      color:#d5e2ff;
+      background:#0f1730;
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;
+      padding:14px;
+      min-height:220px;
+      max-height:420px;
+      overflow:auto;
+    }
+    .footer-note{
+      color:var(--muted);
+      font-size:12px;
+      margin-top:10px;
+      line-height:1.5;
+    }
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    select, input[type="text"]{
+      background:#22315a;color:var(--text);border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;padding:12px 14px;font-size:14px;outline:none;
+    }
+    @media (max-width: 900px){
+      .hero{grid-template-columns:1fr}
+      .span-4,.span-6,.span-8,.span-12{grid-column:span 12}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="card">
+        <h1>THOTH PRO <span class="ok">Produção Final</span></h1>
+        <p class="muted">Base mestre fixa, conversão segura por KG / BDJ / UN, itens sem base destacados e geração automática de planilha final.</p>
+        <div class="pillrow">
+          <span class="pill">Base mestre integrada</span>
+          <span class="pill">Arredondamento para cima</span>
+          <span class="pill">Sem adivinhar conversão</span>
+          <span class="pill">Itens sem base separados</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Painel rápido</h2>
+        <div class="grid">
+          <div class="stat span-6">
+            <div class="muted">Arquivos carregados</div>
+            <div id="statArquivos" class="k">0</div>
+          </div>
+          <div class="stat span-6">
+            <div class="muted">Linhas processadas</div>
+            <div id="statLinhas" class="k">0</div>
+          </div>
+          <div class="stat span-6">
+            <div class="muted">Itens convertidos</div>
+            <div id="statConvertidos" class="k">0</div>
+          </div>
+          <div class="stat span-6">
+            <div class="muted">Itens sem base</div>
+            <div id="statSemBase" class="k danger">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card span-8">
+        <h2>Processamento</h2>
+        <div class="toolbar" style="margin-bottom:12px">
+          <label class="fake-input" for="filesInput">📂 Selecionar pedidos (.xlsx / .xls)</label>
+          <input id="filesInput" type="file" accept=".xlsx,.xls" multiple />
+
+          <select id="modoCliente">
+            <option value="AUTO">Cliente: AUTO</option>
+            <option value="BRASAO">Cliente: BRASÃO</option>
+            <option value="KROSS">Cliente: KROSS</option>
+            <option value="CD">Cliente: CD</option>
+          </select>
+
+          <input id="nomeSaida" type="text" placeholder="Nome do arquivo final" value="THOTH_PRO_PROCESSADO" />
+
+          <button id="btnProcessar" class="primary">PROCESSAR PEDIDO</button>
+          <button id="btnBaixar" class="secondary" disabled>BAIXAR EXCEL</button>
+          <button id="btnBase" class="secondary">BAIXAR BASE MESTRE</button>
+        </div>
+        <div class="footer-note">
+          O app tenta localizar automaticamente colunas de produto, quantidade, tipo e loja. Quando não encontra base de conversão, o item vai para a aba <strong>SEM_BASE</strong> e não é inventada nenhuma regra.
+        </div>
+      </div>
+
+      <div class="card span-4">
+        <h2>Status</h2>
+        <div id="arquivosLista" class="log">Nenhum arquivo carregado.</div>
+      </div>
+
+      <div class="card span-8">
+        <h2>Prévia do resultado</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Arquivo</th>
+                <th>Aba</th>
+                <th>Produto</th>
+                <th>Categoria</th>
+                <th>Qtd original</th>
+                <th>Caixas</th>
+                <th>Status</th>
+                <th>Loja</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody">
+              <tr><td colspan="8" class="muted">Ainda sem processamento.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card span-4">
+        <h2>Log técnico</h2>
+        <div id="logBox" class="log">Sistema pronto.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BASE_MESTRE = {
+      "Abobora": { categoria: "LEGUMES", tipo: "KG", peso_caixa: 20 },
+      "Batata": { categoria: "LEGUMES", tipo: "KG", peso_caixa: 25 },
+      "Cebola": { categoria: "LEGUMES", tipo: "KG", peso_caixa: 20 },
+      "Goiaba": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 3 },
+      "Kiwi": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 10 },
+      "Coco Seco": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 25 },
+      "Melão": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 12 },
+      "Morango": { categoria: "FRUTAS", tipo: "BDJ", bandejas_por_caixa: 4 },
+      "Uva 500g": { categoria: "FRUTAS", tipo: "BDJ", bandejas_por_caixa: 10 },
+      "Ameixa 500g": { categoria: "FRUTAS", tipo: "BDJ", bandejas_por_caixa: 20 },
+      "Mirtilo": { categoria: "FRUTAS", tipo: "BDJ", bandejas_por_caixa: 12 },
+      "Framboesa": { categoria: "FRUTAS", tipo: "BDJ", bandejas_por_caixa: 10 },
+      "Tomate Grap": { categoria: "LEGUMES", tipo: "BDJ", bandejas_por_caixa: 24 },
+      "Laranja": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 20 },
+      "Limão": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 20 },
+      "Mamao Papaya": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 18 },
+      "Mamão Papaya": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 18 },
+      "Abacaxi": { categoria: "FRUTAS", tipo: "UN", unidades_caixa: 10 },
+      "Manga": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 6 },
+      "Maracuja": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 10 },
+      "Maracujá": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 10 },
+      "Jaca": { categoria: "FRUTAS", tipo: "KG", peso_caixa: 15 },
+      "Repolho Roxo": { categoria: "LEGUMES", tipo: "KG", peso_caixa: 20 },
+      "Milho": { categoria: "LEGUMES", tipo: "UN", unidades_caixa: 30 }
+    };
+
+    const ALIAS = {
+      "tomate grape":"Tomate Grap",
+      "tomate grap":"Tomate Grap",
+      "tomate grappe":"Tomate Grap",
+      "uva500g":"Uva 500g",
+      "uva 500 g":"Uva 500g",
+      "ameixa500g":"Ameixa 500g",
+      "ameixa 500 g":"Ameixa 500g",
+      "mamao papaya":"Mamão Papaya",
+      "mamão papaya":"Mamão Papaya",
+      "maracuja":"Maracujá",
+      "maracujá":"Maracujá",
+      "abobora":"Abobora",
+      "abóbora":"Abobora",
+      "melao":"Melão",
+      "melão":"Melão",
+      "limao":"Limão",
+      "limão":"Limão"
+    };
+
+    let arquivos = [];
+    let resultadoAtual = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    function log(msg) {
+      const box = $("logBox");
+      const stamp = new Date().toLocaleTimeString('pt-BR');
+      box.textContent += `\n[${stamp}] ${msg}`;
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function setArquivosLista() {
+      if (!arquivos.length) {
+        $("arquivosLista").textContent = "Nenhum arquivo carregado.";
+        $("statArquivos").textContent = "0";
+        return;
+      }
+      $("arquivosLista").textContent = arquivos.map((f, i) => `${i + 1}. ${f.name}`).join("\n");
+      $("statArquivos").textContent = String(arquivos.length);
+    }
+
+    function normalizarTexto(txt) {
+      return String(txt ?? "")
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9 ]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    }
+
+    function tituloBonito(txt) {
+      return String(txt || '')
+        .toLowerCase()
+        .split(' ')
+        .filter(Boolean)
+        .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+        .join(' ');
+    }
+
+    function normalizarProduto(nome) {
+      const n = normalizarTexto(nome);
+      if (ALIAS[n]) return ALIAS[n];
+
+      for (const produto of Object.keys(BASE_MESTRE)) {
+        if (normalizarTexto(produto) === n) return produto;
+      }
+
+      for (const produto of Object.keys(BASE_MESTRE)) {
+        const pn = normalizarTexto(produto);
+        if (n.includes(pn) || pn.includes(n)) return produto;
+      }
+
+      return tituloBonito(nome);
+    }
+
+    function extrairNumero(v) {
+      if (typeof v === 'number' && Number.isFinite(v)) return v;
+      const s = String(v ?? '').replace(/\./g, '').replace(',', '.').match(/-?\d+(\.\d+)?/);
+      return s ? Number(s[0]) : 0;
+    }
+
+    function identificarCabecalho(rows) {
+      let melhor = { idx: 0, score: -1 };
+      rows.slice(0, 12).forEach((row, idx) => {
+        const vals = row.map(c => normalizarTexto(c));
+        let score = 0;
+        vals.forEach(v => {
+          if (["produto","item","descricao","descricao","mercadoria"].includes(v)) score += 4;
+          if (["qtd","qtde","quantidade","kg","bandeja","bandejas","un","unid","unidade"].includes(v)) score += 3;
+          if (["tipo","embalagem","loja","filial","cliente"].includes(v)) score += 2;
+        });
+        if (score > melhor.score) melhor = { idx, score };
+      });
+      return melhor.idx;
+    }
+
+    function mapearColunas(headers) {
+      const mapa = { produto: -1, quantidade: -1, tipo: -1, loja: -1, codigo: -1, preco: -1 };
+      headers.forEach((h, idx) => {
+        const v = normalizarTexto(h);
+        if (mapa.produto === -1 && ["produto","item","descricao","descricao","mercadoria"].some(x => v.includes(x))) mapa.produto = idx;
+        if (mapa.quantidade === -1 && ["quantidade","qtd","qtde"].some(x => v.includes(x))) mapa.quantidade = idx;
+        if (mapa.tipo === -1 && ["tipo","embalagem","unidade","und","formato"].some(x => v.includes(x))) mapa.tipo = idx;
+        if (mapa.loja === -1 && ["loja","filial","cliente","destino"].some(x => v.includes(x))) mapa.loja = idx;
+        if (mapa.codigo === -1 && ["codigo","código","cod forn","codforn","cod_forn"].some(x => v.includes(x))) mapa.codigo = idx;
+        if (mapa.preco === -1 && ["preco","preço","valor","valor unitario","valor unitário"].some(x => v.includes(x))) mapa.preco = idx;
+      });
+      return mapa;
+    }
+
+    function inferirTipo(produtoNormalizado, linha, headers, mapa) {
+      const base = BASE_MESTRE[produtoNormalizado];
+      if (base?.tipo) return base.tipo;
+
+      const tipoBruto = mapa.tipo >= 0 ? normalizarTexto(linha[mapa.tipo]) : "";
+      if (["kg","quilo","kilo"].includes(tipoBruto)) return "KG";
+      if (["bdj","bandeja","bandejas"].includes(tipoBruto)) return "BDJ";
+      if (["un","und","unid","unidade","unidades"].includes(tipoBruto)) return "UN";
+
+      const rowText = normalizarTexto(linha.join(' '));
+      if (rowText.includes('bdj') || rowText.includes('bandeja')) return 'BDJ';
+      if (rowText.includes('kg') || rowText.includes('quilo')) return 'KG';
+      if (rowText.includes(' un ') || rowText.endsWith(' un') || rowText.includes(' unidade')) return 'UN';
+
+      return "";
+    }
+
+    function converterItem(produto, quantidade) {
+      const produtoBase = normalizarProduto(produto);
+      const base = BASE_MESTRE[produtoBase];
+
+      if (!base) {
+        return {
+          produto: produtoBase,
+          categoria: "SEM_CLASSIFICACAO",
+          tipoBase: "",
+          caixas: 0,
+          status: "SEM BASE"
+        };
+      }
+
+      let caixas = 0;
+      if (base.tipo === "KG") caixas = quantidade / Number(base.peso_caixa || 1);
+      else if (base.tipo === "BDJ") caixas = quantidade / Number(base.bandejas_por_caixa || 1);
+      else if (base.tipo === "UN") caixas = quantidade / Number(base.unidades_caixa || 1);
+
+      return {
+        produto: produtoBase,
+        categoria: base.categoria || "SEM_CLASSIFICACAO",
+        tipoBase: base.tipo,
+        caixas: Math.ceil(caixas || 0),
+        status: "OK"
+      };
+    }
+
+    function linhaVazia(row) {
+      return !row || row.every(c => String(c ?? '').trim() === '');
+    }
+
+    function sheetToRows(sheet) {
+      return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+    }
+
+    function processarAba(rows, nomeArquivo, nomeAba, clienteModo) {
+      const saida = [];
+      if (!rows.length) return saida;
+
+      const headerIdx = identificarCabecalho(rows);
+      const headers = rows[headerIdx] || [];
+      const mapa = mapearColunas(headers);
+
+      let produtoFallback = mapa.produto;
+      let quantidadeFallback = mapa.quantidade;
+
+      if (produtoFallback === -1 || quantidadeFallback === -1) {
+        const maxCols = Math.max(...rows.map(r => r.length), 0);
+        for (let c = 0; c < maxCols; c++) {
+          let letras = 0;
+          let nums = 0;
+          rows.slice(headerIdx + 1, headerIdx + 18).forEach(r => {
+            const val = String(r[c] ?? '').trim();
+            if (!val) return;
+            if (/\d/.test(val)) nums++;
+            if (/[A-Za-zÀ-ÿ]/.test(val)) letras++;
+          });
+          if (produtoFallback === -1 && letras >= 4) produtoFallback = c;
+          if (quantidadeFallback === -1 && nums >= 4) quantidadeFallback = c;
+        }
+      }
+
+      rows.slice(headerIdx + 1).forEach(row => {
+        if (linhaVazia(row)) return;
+
+        const produtoBruto = produtoFallback >= 0 ? row[produtoFallback] : '';
+        const quantidadeBruta = quantidadeFallback >= 0 ? row[quantidadeFallback] : '';
+        const produtoTexto = String(produtoBruto ?? '').trim();
+        const quantidade = extrairNumero(quantidadeBruta);
+
+        if (!produtoTexto || quantidade <= 0) return;
+
+        const conv = converterItem(produtoTexto, quantidade);
+        const loja = mapa.loja >= 0 ? String(row[mapa.loja] ?? '').trim() : '';
+        const codigo = mapa.codigo >= 0 ? String(row[mapa.codigo] ?? '').trim() : '';
+        const preco = mapa.preco >= 0 ? String(row[mapa.preco] ?? '').trim() : '';
+        const tipoInferido = inferirTipo(conv.produto, row, headers, mapa);
+
+        const categoriaFinal = inferirCategoria(conv.produto, nomeAba, nomeArquivo);
+
+        saida.push({
+          arquivo: nomeArquivo,
+          aba: nomeAba,
+          cliente: clienteModo,
+          loja,
+          produto_original: produtoTexto,
+          produto: conv.produto,
+          categoria: categoriaFinal,
+          quantidade_original: quantidade,
+          unidade_base: conv.tipoBase || tipoInferido || '',
+          caixas: conv.caixas,
+          status: conv.status,
+          codigo_forn: codigo,
+          preco_unitario: preco
+        });
+      });
+
+      return saida;
+    }
+
+    function inferirCategoria(produto, nomeAba, nomeArquivo) {
+      const base = BASE_MESTRE[produto];
+      if (base?.categoria) return base.categoria;
+
+      const texto = normalizarTexto(`${nomeAba} ${nomeArquivo}`);
+      if (texto.includes('fruta')) return 'FRUTAS';
+      if (texto.includes('legume') || texto.includes('verdura')) return 'LEGUMES';
+      return 'SEM_CLASSIFICACAO';
+    }
+
+    function resumir(resultado) {
+      $("statLinhas").textContent = String(resultado.todas.length);
+      $("statConvertidos").textContent = String(resultado.todas.filter(r => r.status === 'OK').length);
+      $("statSemBase").textContent = String(resultado.semBase.length);
+    }
+
+    function renderPreview(resultado) {
+      const body = $("previewBody");
+      const amostra = resultado.todas.slice(0, 200);
+      if (!amostra.length) {
+        body.innerHTML = '<tr><td colspan="8" class="muted">Sem dados.</td></tr>';
+        return;
+      }
+      body.innerHTML = amostra.map(r => `
+        <tr>
+          <td>${escapeHtml(r.arquivo)}</td>
+          <td>${escapeHtml(r.aba)}</td>
+          <td>${escapeHtml(r.produto)}</td>
+          <td>${escapeHtml(r.categoria)}</td>
+          <td>${formatNumber(r.quantidade_original)}</td>
+          <td>${formatNumber(r.caixas)}</td>
+          <td class="${r.status === 'OK' ? 'ok' : 'danger'}">${escapeHtml(r.status)}</td>
+          <td>${escapeHtml(r.loja || '')}</td>
+        </tr>
+      `).join('');
+    }
+
+    function formatNumber(n) {
+      const num = Number(n || 0);
+      return Number.isInteger(num) ? String(num) : num.toLocaleString('pt-BR');
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function agruparResultado(todas) {
+      const frutas = todas.filter(r => r.categoria === 'FRUTAS' && r.status === 'OK');
+      const legumes = todas.filter(r => r.categoria === 'LEGUMES' && r.status === 'OK');
+      const semBase = todas.filter(r => r.status !== 'OK');
+      const codigosPrecos = todas
+        .filter(r => r.codigo_forn || r.preco_unitario)
+        .map(r => ({
+          categoria: r.categoria,
+          produto: r.produto,
+          codigo_forn: r.codigo_forn,
+          preco_unitario: r.preco_unitario,
+          arquivo: r.arquivo,
+          aba: r.aba
+        }))
+        .sort((a,b) => a.categoria.localeCompare(b.categoria,'pt-BR') || a.produto.localeCompare(b.produto,'pt-BR'));
+
+      return { todas, frutas, legumes, semBase, codigosPrecos };
+    }
+
+    function baixarExcel(resultado) {
+      const wb = XLSX.utils.book_new();
+
+      const wsFrutas = XLSX.utils.json_to_sheet(resultado.frutas.map(formatarSaida));
+      const wsLegumes = XLSX.utils.json_to_sheet(resultado.legumes.map(formatarSaida));
+      const wsSemBase = XLSX.utils.json_to_sheet(resultado.semBase.map(formatarSaida));
+      const wsTodos = XLSX.utils.json_to_sheet(resultado.todas.map(formatarSaida));
+      const wsCodigos = XLSX.utils.json_to_sheet(resultado.codigosPrecos);
+      const wsBase = XLSX.utils.json_to_sheet(Object.entries(BASE_MESTRE).map(([produto, cfg]) => ({
+        produto,
+        categoria: cfg.categoria || '',
+        tipo: cfg.tipo || '',
+        peso_caixa: cfg.peso_caixa || '',
+        bandejas_por_caixa: cfg.bandejas_por_caixa || '',
+        unidades_caixa: cfg.unidades_caixa || ''
+      })));
+
+      XLSX.utils.book_append_sheet(wb, wsFrutas, 'FRUTAS');
+      XLSX.utils.book_append_sheet(wb, wsLegumes, 'LEGUMES');
+      XLSX.utils.book_append_sheet(wb, wsSemBase, 'SEM_BASE');
+      XLSX.utils.book_append_sheet(wb, wsCodigos, 'CODIGOS_PRECOS');
+      XLSX.utils.book_append_sheet(wb, wsTodos, 'CONSOLIDADO');
+      XLSX.utils.book_append_sheet(wb, wsBase, 'BASE_MESTRE');
+
+      const nome = (($("nomeSaida").value || 'THOTH_PRO_PROCESSADO').trim() || 'THOTH_PRO_PROCESSADO') + '.xlsx';
+      XLSX.writeFile(wb, nome);
+    }
+
+    function formatarSaida(r) {
+      return {
+        arquivo: r.arquivo,
+        aba: r.aba,
+        cliente: r.cliente,
+        loja: r.loja,
+        produto_original: r.produto_original,
+        produto: r.produto,
+        categoria: r.categoria,
+        quantidade_original: r.quantidade_original,
+        unidade_base: r.unidade_base,
+        caixas: r.caixas,
+        status: r.status,
+        codigo_forn: r.codigo_forn,
+        preco_unitario: r.preco_unitario
+      };
+    }
+
+    async function lerArquivoExcel(file) {
+      const data = await file.arrayBuffer();
+      return XLSX.read(data, { type: 'array' });
+    }
+
+    async function processarArquivos() {
+      if (!arquivos.length) {
+        alert('Selecione pelo menos um arquivo.');
+        return;
+      }
+
+      $("btnProcessar").disabled = true;
+      $("btnBaixar").disabled = true;
+      log('Iniciando processamento...');
+
+      try {
+        let todas = [];
+        const clienteModo = $("modoCliente").value;
+
+        for (const file of arquivos) {
+          log(`Lendo ${file.name}...`);
+          const wb = await lerArquivoExcel(file);
+
+          for (const nomeAba of wb.SheetNames) {
+            const sheet = wb.Sheets[nomeAba];
+            const rows = sheetToRows(sheet);
+            const itens = processarAba(rows, file.name, nomeAba, clienteModo);
+            log(`Aba ${nomeAba}: ${itens.length} linha(s) aproveitada(s).`);
+            todas = todas.concat(itens);
+          }
+        }
+
+        resultadoAtual = agruparResultado(todas);
+        resumir(resultadoAtual);
+        renderPreview(resultadoAtual);
+        $("btnBaixar").disabled = false;
+        log(`Processamento finalizado. Total: ${resultadoAtual.todas.length} linha(s).`);
+        if (resultadoAtual.semBase.length) {
+          log(`Atenção: ${resultadoAtual.semBase.length} item(ns) sem base foram enviados para a aba SEM_BASE.`);
+        }
+      } catch (err) {
+        console.error(err);
+        log(`Erro: ${err.message}`);
+        alert('Ocorreu um erro ao processar os arquivos. Veja o log técnico.');
+      } finally {
+        $("btnProcessar").disabled = false;
+      }
+    }
+
+    function baixarBaseMestre() {
+      const wb = XLSX.utils.book_new();
+      const dados = Object.entries(BASE_MESTRE).map(([produto, cfg]) => ({
+        produto,
+        categoria: cfg.categoria || '',
+        tipo: cfg.tipo || '',
+        peso_caixa: cfg.peso_caixa || '',
+        bandejas_por_caixa: cfg.bandejas_por_caixa || '',
+        unidades_caixa: cfg.unidades_caixa || ''
+      }));
+      const ws = XLSX.utils.json_to_sheet(dados);
+      XLSX.utils.book_append_sheet(wb, ws, 'BASE_MESTRE');
+      XLSX.writeFile(wb, 'THOTH_BASE_MESTRE.xlsx');
+    }
+
+    $("filesInput").addEventListener('change', (e) => {
+      arquivos = Array.from(e.target.files || []);
+      setArquivosLista();
+      log(`${arquivos.length} arquivo(s) selecionado(s).`);
+    });
+
+    $("btnProcessar").addEventListener('click', processarArquivos);
+    $("btnBaixar").addEventListener('click', () => {
+      if (!resultadoAtual) return;
+      baixarExcel(resultadoAtual);
+    });
+    $("btnBase").addEventListener('click', baixarBaseMestre);
+
+    setArquivosLista();
+    log('Base mestre carregada.');
+  </script>
+</body>
+</html>
