@@ -22,10 +22,9 @@ IGNORE_NAMES = {"", "TOTAL", "TOTAIS", "SUBTOTAL", "SUB-TOTAL", "PRODUTO", "PROD
 
 MODEL_BRASAO_FRUTAS = BASE_DIR / "BRASAO FRUTAS BRANCO.xlsx"
 MODEL_BRASAO_LEGUMES = BASE_DIR / "BRASAO LEGUMES BRANCO.xlsx"
-MODEL_KROSS_FRUTAS = BASE_DIR / "KROSS - PRÉ PEDIDO FRUTAS BRANCO.xlsx"
+MODEL_KROSS_FRUTAS = BASE_DIR / "KROSS - PRE PEDIDO FRUTAS BRANCO.xlsx"
 MODEL_KROSS_LEGUMES = BASE_DIR / "KROSS - LEGUMES PRE PEDIDO BRANCO.xlsx"
-MODEL_BRASAO_CD_FRUTAS = BASE_DIR / "BRASAO CD - PRE PEDIDO FRUTAS branco.xlsx"
-MODEL_BRASAO_CD_LEGUMES = BASE_DIR / "BRASAO CD - PRE PEDIDO LEGUMES branco.xlsx"
+BASE_PRODUCTS_FILE = BASE_DIR / "base_thoth_app_normalizada_brasao_kross.xlsx"
 
 STORE_RULES = [
     {
@@ -143,31 +142,14 @@ def ceil_div(qtd, base):
     return int(-(-qtd // base))
 
 
-def resolve_model_path(path_obj: Path) -> Path:
-    candidates = [path_obj, BASE_DIR / "models" / path_obj.name]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return path_obj
-
-
-MODEL_BRASAO_FRUTAS = resolve_model_path(MODEL_BRASAO_FRUTAS)
-MODEL_BRASAO_LEGUMES = resolve_model_path(MODEL_BRASAO_LEGUMES)
-MODEL_KROSS_FRUTAS = resolve_model_path(MODEL_KROSS_FRUTAS)
-MODEL_KROSS_LEGUMES = resolve_model_path(MODEL_KROSS_LEGUMES)
-MODEL_BRASAO_CD_FRUTAS = resolve_model_path(MODEL_BRASAO_CD_FRUTAS)
-MODEL_BRASAO_CD_LEGUMES = resolve_model_path(MODEL_BRASAO_CD_LEGUMES)
-
-
 @st.cache_data(show_spinner=False)
-def load_base(base_file_bytes: bytes, filename: str) -> pd.DataFrame:
-    file_buffer = BytesIO(base_file_bytes)
-    wb = pd.ExcelFile(file_buffer)
-    df = pd.read_excel(file_buffer, sheet_name=wb.sheet_names[0])
-    cols_map = {}
-    for c in df.columns:
-        key = norm_key(c)
-        cols_map[c] = key
+def load_base_from_disk(path_str: str) -> pd.DataFrame:
+    file_path = Path(path_str)
+    if not file_path.exists():
+        raise FileNotFoundError(f"Base de produtos não encontrada: {file_path.name}")
+
+    df = pd.read_excel(file_path, sheet_name=0)
+    cols_map = {c: norm_key(c) for c in df.columns}
 
     def pick(col_options, required=False):
         for original, key in cols_map.items():
@@ -224,7 +206,7 @@ def load_base(base_file_bytes: bytes, filename: str) -> pd.DataFrame:
 @st.cache_data(show_spinner=False)
 def pdf_to_text(file_bytes: bytes) -> str:
     if pdfplumber is None:
-        raise RuntimeError("Falta instalar pdfplumber no ambiente. Adicione em requisitos.txt")
+        raise RuntimeError("Falta instalar pdfplumber no ambiente. Adicione em requirements.txt")
 
     all_text = []
     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
@@ -251,9 +233,7 @@ def detect_unit(desc: str) -> str:
 
 
 def clean_desc(desc: str) -> str:
-    text = norm_text(desc)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+    return re.sub(r"\s+", " ", norm_text(desc)).strip()
 
 
 def is_stop_line(line: str) -> bool:
@@ -335,13 +315,10 @@ def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
 
     if modo == "CAIXA" or unit == "CX":
         return int(qtd)
-
     if modo == "PESO" or unit == "KG":
         return ceil_div(qtd, base_row.get("peso_caixa"))
-
     if modo in {"UNIDADE", "UND"} or unit == "UND":
         return ceil_div(qtd, base_row.get("itens_por_caixa"))
-
     if modo in {"BANDEJA", "BDJ"} or unit == "BDJ":
         return ceil_div(qtd, base_row.get("bandejas_por_caixa"))
 
@@ -351,7 +328,6 @@ def convert_to_boxes(qtd: float, unit: str, base_row) -> int:
         return ceil_div(qtd, base_row.get("itens_por_caixa"))
     if unit == "BDJ" and base_row.get("bandejas_por_caixa"):
         return ceil_div(qtd, base_row.get("bandejas_por_caixa"))
-
     return 0
 
 
@@ -413,12 +389,6 @@ def product_rows(ws):
     return rows
 
 
-@st.cache_data(show_spinner=False)
-def get_cached_product_rows(model_path_str: str):
-    wb = load_workbook(model_path_str)
-    return product_rows(wb.active)
-
-
 def copy_row_style(ws, src_row, dst_row):
     for col in range(1, ws.max_column + 1):
         src = ws.cell(src_row, col)
@@ -436,7 +406,6 @@ def extract_store_number_from_model(v1, v2):
     c1 = norm_key(v1)
     c2 = norm_key(v2)
     combo = f"{c1} {c2}"
-
     if "LOJA 1" in combo or re.fullmatch(r"1", c2):
         return "1"
     if "LOJA 2" in combo or re.fullmatch(r"2", c2):
@@ -497,7 +466,6 @@ def write_output(model_path: Path, data: pd.DataFrame, model_type: str) -> bytes
         stores, total_col = model_map(ws)
 
     prod_map = product_rows(ws)
-
     cols_to_clear = list(stores.values())
     if total_col:
         cols_to_clear.append(total_col)
@@ -598,9 +566,10 @@ def build_cd_workbook(frutas_matrix: pd.DataFrame, legumes_matrix: pd.DataFrame)
     return out.getvalue()
 
 
-def ensure_models():
+def ensure_fixed_files():
     missing = []
     for path in [
+        BASE_PRODUCTS_FILE,
         MODEL_BRASAO_FRUTAS,
         MODEL_BRASAO_LEGUMES,
         MODEL_KROSS_FRUTAS,
@@ -609,7 +578,7 @@ def ensure_models():
         if not path.exists():
             missing.append(path.name)
     if missing:
-        raise FileNotFoundError("Modelos não encontrados: " + ", ".join(missing))
+        raise FileNotFoundError("Arquivos fixos não encontrados no repositório: " + ", ".join(missing))
 
 
 def build_zip(files_dict: dict) -> bytes:
@@ -622,38 +591,46 @@ def build_zip(files_dict: dict) -> bytes:
 
 
 st.title("📦 BRASÃO / KROSS → THOTH (PRO)")
-st.caption("Upload múltiplo de PDFs. O app identifica a unidade pelo cabeçalho/endereço, converte para caixa e gera os arquivos finais.")
+st.caption("Suba apenas os PDFs. A base e os modelos já ficam fixos dentro do sistema.")
 
 with st.sidebar:
     st.subheader("Como usar")
-    st.write("1. Envie a base normalizada de produtos.")
-    st.write("2. Envie todos os PDFs do dia.")
-    st.write("3. Clique em PROCESSAR.")
-    st.write("4. Baixe o ZIP com os arquivos finais.")
+    st.write("1. Envie todos os PDFs do dia.")
+    st.write("2. Clique em PROCESSAR.")
+    st.write("3. Baixe o ZIP com os arquivos finais.")
     st.info("Fluxos suportados: Brasão lojas, Brasão CD e Kross.")
     st.info("Brasão Fernando = Loja 1 | Jardim = Loja 2 | Xaxim = Loja 3 | Avenida = Loja 4.")
     st.info("Kross Atacadista = Loja 1 | Kross Xaxim = Loja 2.")
+    st.info(f"Base fixa: {BASE_PRODUCTS_FILE.name}")
 
-base_file = st.file_uploader("Base de produtos (Excel)", type=["xlsx", "xls", "csv"])
 pdf_files = st.file_uploader("Pedidos PDF", type=["pdf"], accept_multiple_files=True)
 
 if st.button("PROCESSAR", use_container_width=True, type="primary"):
-    if not base_file:
-        st.error("Envie a base de produtos para continuar.")
-    elif not pdf_files:
+    if not pdf_files:
         st.error("Envie ao menos um PDF.")
     else:
         try:
-            ensure_models()
-            base_df = load_base(base_file.getvalue(), base_file.name)
+            ensure_fixed_files()
+            base_df = load_base_from_disk(str(BASE_PRODUCTS_FILE))
 
             transformed_parts = []
             all_errors = []
             identified = []
+            seen_store_ids = set()
 
             for pdf in pdf_files:
                 text = pdf_to_text(pdf.getvalue())
                 store_rule = identify_store(text)
+
+                if store_rule["store_id"] in seen_store_ids:
+                    all_errors.append(pd.DataFrame([{
+                        "loja": store_rule["display"],
+                        "produto": pdf.name,
+                        "erro": "PDF duplicado da mesma unidade ignorado",
+                    }]))
+                    continue
+
+                seen_store_ids.add(store_rule["store_id"])
                 order_df = parse_order_items(text)
                 transformed_df, errors_df = transform_items(order_df, store_rule, base_df)
 
@@ -695,47 +672,51 @@ if st.button("PROCESSAR", use_container_width=True, type="primary"):
             cd_frutas_matrix = group_to_matrix(cd_frutas)
             cd_legumes_matrix = group_to_matrix(cd_legumes)
 
-            files_to_zip = {}
+            files_to_zip = {
+                "BRASAO_FRUTAS_Thoth.xlsx": write_output(MODEL_BRASAO_FRUTAS, brasao_frutas_matrix, "BRASAO"),
+                "BRASAO_LEGUMES_Thoth.xlsx": write_output(MODEL_BRASAO_LEGUMES, brasao_legumes_matrix, "BRASAO"),
+                "KROSS_FRUTAS_Thoth.xlsx": write_output(MODEL_KROSS_FRUTAS, kross_frutas_matrix, "KROSS"),
+                "KROSS_LEGUMES_Thoth.xlsx": write_output(MODEL_KROSS_LEGUMES, kross_legumes_matrix, "KROSS"),
+                "BRASAO_CD.xlsx": build_cd_workbook(cd_frutas_matrix, cd_legumes_matrix),
+                "BRASAO_PRECOS.xlsx": build_prices_sheet(brasao_df),
+                "KROSS_PRECOS.xlsx": build_prices_sheet(kross_df),
+                "BRASAO_CD_PRECOS.xlsx": build_prices_sheet(cd_df),
+            }
 
-            files_to_zip["BRASAO_FRUTAS_Thoth.xlsx"] = write_output(MODEL_BRASAO_FRUTAS, brasao_frutas_matrix, "BRASAO")
-            files_to_zip["BRASAO_LEGUMES_Thoth.xlsx"] = write_output(MODEL_BRASAO_LEGUMES, brasao_legumes_matrix, "BRASAO")
-            files_to_zip["KROSS_FRUTAS_Thoth.xlsx"] = write_output(MODEL_KROSS_FRUTAS, kross_frutas_matrix, "KROSS")
-            files_to_zip["KROSS_LEGUMES_Thoth.xlsx"] = write_output(MODEL_KROSS_LEGUMES, kross_legumes_matrix, "KROSS")
-            files_to_zip["BRASAO_CD.xlsx"] = build_cd_workbook(cd_frutas_matrix, cd_legumes_matrix)
+            missing_units = []
+            expected_ids = {
+                "BRASAO_FERNANDO", "BRASAO_JARDIM", "BRASAO_XAXIM", "BRASAO_AVENIDA",
+                "BRASAO_CD", "KROSS_CHAPECO", "KROSS_XAXIM"
+            }
+            for rule in STORE_RULES:
+                if rule["store_id"] in expected_ids and rule["store_id"] not in seen_store_ids:
+                    missing_units.append({"loja": rule["display"], "produto": "", "erro": "PDF da unidade não enviado"})
 
-            files_to_zip["BRASAO_PRECOS.xlsx"] = build_prices_sheet(brasao_df)
-            files_to_zip["KROSS_PRECOS.xlsx"] = build_prices_sheet(kross_df)
-            files_to_zip["BRASAO_CD_PRECOS.xlsx"] = build_prices_sheet(cd_df)
+            if missing_units:
+                missing_df = pd.DataFrame(missing_units)
+                errors_data = pd.concat([errors_data, missing_df], ignore_index=True)
 
-            if not errors_data.empty:
-                err_out = BytesIO()
-                with pd.ExcelWriter(err_out, engine="openpyxl") as writer:
-                    identified_df.to_excel(writer, sheet_name="ARQUIVOS", index=False)
-                    errors_data.to_excel(writer, sheet_name="ERROS", index=False)
-                err_out.seek(0)
-                files_to_zip["LOG_PROCESSAMENTO.xlsx"] = err_out.getvalue()
-            else:
-                info_out = BytesIO()
-                with pd.ExcelWriter(info_out, engine="openpyxl") as writer:
-                    identified_df.to_excel(writer, sheet_name="ARQUIVOS", index=False)
-                info_out.seek(0)
-                files_to_zip["LOG_PROCESSAMENTO.xlsx"] = info_out.getvalue()
+            err_out = BytesIO()
+            with pd.ExcelWriter(err_out, engine="openpyxl") as writer:
+                identified_df.to_excel(writer, sheet_name="ARQUIVOS", index=False)
+                errors_data.to_excel(writer, sheet_name="ERROS", index=False)
+            err_out.seek(0)
+            files_to_zip["LOG_PROCESSAMENTO.xlsx"] = err_out.getvalue()
 
             zip_bytes = build_zip(files_to_zip)
 
             st.success("Processamento concluído com sucesso.")
-
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("PDFs", len(pdf_files))
-            c2.metric("Arquivos identificados", len(identified_df))
+            c1.metric("PDFs enviados", len(pdf_files))
+            c2.metric("Unidades identificadas", len(identified_df))
             c3.metric("Itens convertidos", len(all_data))
-            c4.metric("Erros", len(errors_data))
+            c4.metric("Ocorrências no log", len(errors_data))
 
             st.subheader("Arquivos processados")
             st.dataframe(identified_df, use_container_width=True)
 
             if not errors_data.empty:
-                st.subheader("Itens com erro")
+                st.subheader("Log de ocorrências")
                 st.dataframe(errors_data, use_container_width=True)
 
             st.download_button(
