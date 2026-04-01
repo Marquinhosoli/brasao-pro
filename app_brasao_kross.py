@@ -20,11 +20,26 @@ st.set_page_config(page_title="BRASÃO / KROSS → THOTH (PRO)", page_icon="📦
 BASE_DIR = Path(__file__).resolve().parent
 IGNORE_NAMES = {"", "TOTAL", "TOTAIS", "SUBTOTAL", "SUB-TOTAL", "PRODUTO", "PRODUTOS"}
 
-MODEL_BRASAO_FRUTAS = BASE_DIR / "BRASAO FRUTAS BRANCO.xlsx"
-MODEL_BRASAO_LEGUMES = BASE_DIR / "BRASAO LEGUMES BRANCO.xlsx"
-MODEL_KROSS_FRUTAS = BASE_DIR / "KROSS - PRE PEDIDO FRUTAS BRANCO.xlsx"
-MODEL_KROSS_LEGUMES = BASE_DIR / "KROSS - LEGUMES PRE PEDIDO BRANCO.xlsx"
-BASE_PRODUCTS_FILE = BASE_DIR / "base_thoth_app_normalizada_brasao_kross.xlsx"
+FIXED_FILE_CANDIDATES = {
+    "MODEL_BRASAO_FRUTAS": [
+        "BRASAO - FRUTAS PRE PEDIDO BRANCO.xlsx",
+        "BRASAO FRUTAS BRANCO.xlsx",
+    ],
+    "MODEL_BRASAO_LEGUMES": [
+        "BRASAO - LEGUMES PRE PEDIDO BRANCO.xlsx",
+        "BRASAO LEGUMES BRANCO.xlsx",
+    ],
+    "MODEL_KROSS_FRUTAS": [
+        "KROSS - FRUTAS PRE PEDIDO BRANCO.xlsx",
+        "KROSS - PRE PEDIDO FRUTAS BRANCO.xlsx",
+    ],
+    "MODEL_KROSS_LEGUMES": [
+        "KROSS - LEGUMES PRE PEDIDO BRANCO.xlsx",
+    ],
+    "BASE_PRODUCTS_FILE": [
+        "base_thoth_app_normalizada_brasao_kross.xlsx",
+    ],
+}
 
 STORE_RULES = [
     {
@@ -33,6 +48,7 @@ STORE_RULES = [
         "col_key": "1",
         "display": "Brasão Fernando",
         "signals": ["FERNANDO MACHADO", "CENTRO", "226"],
+        "file_signals": ["FERNANDO"],
     },
     {
         "store_id": "BRASAO_JARDIM",
@@ -40,6 +56,7 @@ STORE_RULES = [
         "col_key": "2",
         "display": "Brasão Jardim",
         "signals": ["SAO PEDRO", "JARDIM AMERICA", "2199"],
+        "file_signals": ["JARDIM"],
     },
     {
         "store_id": "BRASAO_XAXIM",
@@ -47,6 +64,7 @@ STORE_RULES = [
         "col_key": "3",
         "display": "Brasão Xaxim",
         "signals": ["LUIZ LUNARDI", "XAXIM", "810"],
+        "file_signals": ["XAXIM"],
     },
     {
         "store_id": "BRASAO_AVENIDA",
@@ -54,6 +72,7 @@ STORE_RULES = [
         "col_key": "4",
         "display": "Brasão Avenida",
         "signals": ["RIO DE JANEIRO", "CENTRO", "108", "CHAPECO"],
+        "file_signals": ["AVENIDA"],
     },
     {
         "store_id": "BRASAO_CD",
@@ -61,6 +80,7 @@ STORE_RULES = [
         "col_key": "CD",
         "display": "Brasão CD",
         "signals": ["RUA GASPAR", "ELDORADO", "153"],
+        "file_signals": ["CD"],
     },
     {
         "store_id": "KROSS_CHAPECO",
@@ -68,6 +88,7 @@ STORE_RULES = [
         "col_key": "1",
         "display": "Kross Atacadista",
         "signals": ["JOHN KENNEDY", "PASSO DOS FORTES", "550"],
+        "file_signals": ["ATACADO", "CHAPECO"],
     },
     {
         "store_id": "KROSS_XAXIM",
@@ -75,6 +96,7 @@ STORE_RULES = [
         "col_key": "2",
         "display": "Kross Xaxim",
         "signals": ["AMELIO PANIZZI", "XAXIM"],
+        "file_signals": ["XAXIM"],
     },
 ]
 
@@ -140,6 +162,14 @@ def ceil_div(qtd, base):
     if qtd is None or base in (None, 0):
         return 0
     return int(-(-qtd // base))
+
+
+def resolve_first_existing(candidates):
+    for filename in candidates:
+        path = BASE_DIR / filename
+        if path.exists():
+            return path
+    return None
 
 
 @st.cache_data(show_spinner=False)
@@ -216,12 +246,35 @@ def pdf_to_text(file_bytes: bytes) -> str:
     return "\n".join(all_text)
 
 
-def identify_store(pdf_text: str):
+def identify_store(pdf_text: str, file_name: str = ""):
     text = norm_key(pdf_text)
+    name = norm_key(Path(file_name).stem)
+
+    # prioridade pelo nome do arquivo
+    if "KROSS" in name:
+        if "XAXIM" in name:
+            return next(rule for rule in STORE_RULES if rule["store_id"] == "KROSS_XAXIM")
+        if any(token in name for token in ["ATACADO", "ATACADISTA", "CHAPECO"]):
+            return next(rule for rule in STORE_RULES if rule["store_id"] == "KROSS_CHAPECO")
+
+    if "BRASAO" in name or "BRASAO" not in name and any(token in name for token in ["FERNANDO", "JARDIM", "AVENIDA", "CD"]):
+        if "CD" in name:
+            return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_CD")
+        if "FERNANDO" in name:
+            return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_FERNANDO")
+        if "JARDIM" in name:
+            return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_JARDIM")
+        if "AVENIDA" in name:
+            return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_AVENIDA")
+        if "XAXIM" in name and "KROSS" not in name:
+            return next(rule for rule in STORE_RULES if rule["store_id"] == "BRASAO_XAXIM")
+
+    # fallback pelo conteúdo do PDF
     for rule in STORE_RULES:
         if all(signal in text for signal in rule["signals"]):
             return rule
-    raise ValueError("Não consegui identificar a loja/unidade pelo cabeçalho do PDF.")
+
+    raise ValueError(f"Não consegui identificar a loja/unidade pelo cabeçalho do PDF: {file_name}")
 
 
 def detect_unit(desc: str) -> str:
@@ -567,18 +620,20 @@ def build_cd_workbook(frutas_matrix: pd.DataFrame, legumes_matrix: pd.DataFrame)
 
 
 def ensure_fixed_files():
+    resolved = {}
     missing = []
-    for path in [
-        BASE_PRODUCTS_FILE,
-        MODEL_BRASAO_FRUTAS,
-        MODEL_BRASAO_LEGUMES,
-        MODEL_KROSS_FRUTAS,
-        MODEL_KROSS_LEGUMES,
-    ]:
-        if not path.exists():
-            missing.append(path.name)
+
+    for key, candidates in FIXED_FILE_CANDIDATES.items():
+        path = resolve_first_existing(candidates)
+        if path is None:
+            missing.append(candidates[0])
+        else:
+            resolved[key] = path
+
     if missing:
         raise FileNotFoundError("Arquivos fixos não encontrados no repositório: " + ", ".join(missing))
+
+    return resolved
 
 
 def build_zip(files_dict: dict) -> bytes:
@@ -601,7 +656,7 @@ with st.sidebar:
     st.info("Fluxos suportados: Brasão lojas, Brasão CD e Kross.")
     st.info("Brasão Fernando = Loja 1 | Jardim = Loja 2 | Xaxim = Loja 3 | Avenida = Loja 4.")
     st.info("Kross Atacadista = Loja 1 | Kross Xaxim = Loja 2.")
-    st.info(f"Base fixa: {BASE_PRODUCTS_FILE.name}")
+    st.info("Base fixa: base_thoth_app_normalizada_brasao_kross.xlsx")
 
 pdf_files = st.file_uploader("Pedidos PDF", type=["pdf"], accept_multiple_files=True)
 
@@ -610,8 +665,8 @@ if st.button("PROCESSAR", use_container_width=True, type="primary"):
         st.error("Envie ao menos um PDF.")
     else:
         try:
-            ensure_fixed_files()
-            base_df = load_base_from_disk(str(BASE_PRODUCTS_FILE))
+            fixed_files = ensure_fixed_files()
+            base_df = load_base_from_disk(str(fixed_files["BASE_PRODUCTS_FILE"]))
 
             transformed_parts = []
             all_errors = []
@@ -620,7 +675,7 @@ if st.button("PROCESSAR", use_container_width=True, type="primary"):
 
             for pdf in pdf_files:
                 text = pdf_to_text(pdf.getvalue())
-                store_rule = identify_store(text)
+                store_rule = identify_store(text, pdf.name)
 
                 if store_rule["store_id"] in seen_store_ids:
                     all_errors.append(pd.DataFrame([{
@@ -673,21 +728,21 @@ if st.button("PROCESSAR", use_container_width=True, type="primary"):
             cd_legumes_matrix = group_to_matrix(cd_legumes)
 
             files_to_zip = {
-                "BRASAO_FRUTAS_Thoth.xlsx": write_output(MODEL_BRASAO_FRUTAS, brasao_frutas_matrix, "BRASAO"),
-                "BRASAO_LEGUMES_Thoth.xlsx": write_output(MODEL_BRASAO_LEGUMES, brasao_legumes_matrix, "BRASAO"),
-                "KROSS_FRUTAS_Thoth.xlsx": write_output(MODEL_KROSS_FRUTAS, kross_frutas_matrix, "KROSS"),
-                "KROSS_LEGUMES_Thoth.xlsx": write_output(MODEL_KROSS_LEGUMES, kross_legumes_matrix, "KROSS"),
+                "BRASAO_FRUTAS_Thoth.xlsx": write_output(fixed_files["MODEL_BRASAO_FRUTAS"], brasao_frutas_matrix, "BRASAO"),
+                "BRASAO_LEGUMES_Thoth.xlsx": write_output(fixed_files["MODEL_BRASAO_LEGUMES"], brasao_legumes_matrix, "BRASAO"),
+                "KROSS_FRUTAS_Thoth.xlsx": write_output(fixed_files["MODEL_KROSS_FRUTAS"], kross_frutas_matrix, "KROSS"),
+                "KROSS_LEGUMES_Thoth.xlsx": write_output(fixed_files["MODEL_KROSS_LEGUMES"], kross_legumes_matrix, "KROSS"),
                 "BRASAO_CD.xlsx": build_cd_workbook(cd_frutas_matrix, cd_legumes_matrix),
                 "BRASAO_PRECOS.xlsx": build_prices_sheet(brasao_df),
                 "KROSS_PRECOS.xlsx": build_prices_sheet(kross_df),
                 "BRASAO_CD_PRECOS.xlsx": build_prices_sheet(cd_df),
             }
 
-            missing_units = []
             expected_ids = {
                 "BRASAO_FERNANDO", "BRASAO_JARDIM", "BRASAO_XAXIM", "BRASAO_AVENIDA",
                 "BRASAO_CD", "KROSS_CHAPECO", "KROSS_XAXIM"
             }
+            missing_units = []
             for rule in STORE_RULES:
                 if rule["store_id"] in expected_ids and rule["store_id"] not in seen_store_ids:
                     missing_units.append({"loja": rule["display"], "produto": "", "erro": "PDF da unidade não enviado"})
