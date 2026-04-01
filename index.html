@@ -204,6 +204,10 @@
           <button id="btnProcessar" class="primary">PROCESSAR PEDIDO</button>
           <button id="btnBaixar" class="secondary" disabled>BAIXAR EXCEL</button>
           <button id="btnBase" class="secondary">BAIXAR BASE MESTRE</button>
+          <label class="fake-input" for="baseInput">🧠 CARREGAR BASE</label>
+          <input id="baseInput" type="file" accept=".xlsx,.xls" />
+          <button id="btnSalvarBase" class="secondary">SALVAR BASE NO NAVEGADOR</button>
+          <button id="btnLimparBase" class="secondary">LIMPAR BASE SALVA</button>
         </div>
         <div class="footer-note">
           O app tenta localizar automaticamente colunas de produto, quantidade, tipo e loja. Quando não encontra base de conversão, o item vai para a aba <strong>SEM_BASE</strong> e não é inventada nenhuma regra.
@@ -246,7 +250,8 @@
   </div>
 
   <script>
-    const BASE_MESTRE = {
+    const BASE_MESTRE_PADRAO = {
+
       "Abobora": { categoria: "LEGUMES", tipo: "KG", peso_caixa: 20 },
       "Batata": { categoria: "LEGUMES", tipo: "KG", peso_caixa: 25 },
       "Cebola": { categoria: "LEGUMES", tipo: "KG", peso_caixa: 20 },
@@ -322,6 +327,10 @@
       "Tomilho": { categoria: "LEGUMES", tipo: "UN", unidades_caixa: 2 },
       "Uva Thompson 500g": { categoria: "FRUTAS", tipo: "BDJ", bandejas_por_caixa: 10 }
     };
+
+    };
+
+    let BASE_MESTRE = JSON.parse(JSON.stringify(BASE_MESTRE_PADRAO));
 
     const ALIAS = {
       "tomate grape": "Tomate Grap",
@@ -852,9 +861,8 @@
       }
     }
 
-    function baixarBaseMestre() {
-      const wb = XLSX.utils.book_new();
-      const dados = Object.entries(BASE_MESTRE).map(([produto, cfg]) => ({
+    function exportarBaseAtual() {
+      return Object.entries(BASE_MESTRE).map(([produto, cfg]) => ({
         produto,
         categoria: cfg.categoria || '',
         tipo: cfg.tipo || '',
@@ -862,9 +870,72 @@
         bandejas_por_caixa: cfg.bandejas_por_caixa || '',
         unidades_caixa: cfg.unidades_caixa || ''
       }));
-      const ws = XLSX.utils.json_to_sheet(dados);
+    }
+
+    function baixarBaseMestre() {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportarBaseAtual());
       XLSX.utils.book_append_sheet(wb, ws, 'BASE_MESTRE');
       XLSX.writeFile(wb, 'THOTH_BASE_MESTRE.xlsx');
+    }
+
+    async function carregarBaseCustom(file) {
+      if (!file) return;
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const novaBase = {};
+
+      rows.forEach(row => {
+        const produto = String(row.produto || row.Produto || '').trim();
+        if (!produto) return;
+        novaBase[produto] = {
+          categoria: String(row.categoria || row.Categoria || '').trim() || 'SEM_CLASSIFICACAO',
+          tipo: String(row.tipo || row.Tipo || '').trim().toUpperCase(),
+          peso_caixa: Number(row.peso_caixa || row.PESO_CAIXA || row.peso || '') || null,
+          bandejas_por_caixa: Number(row.bandejas_por_caixa || row.BANDEJAS_POR_CAIXA || '') || null,
+          unidades_caixa: Number(row.unidades_caixa || row.UNIDADES_CAIXA || row.itens_por_caixa || '') || null
+        };
+      });
+
+      if (!Object.keys(novaBase).length) {
+        alert('A base enviada está vazia ou fora do padrão.');
+        return;
+      }
+
+      BASE_MESTRE = { ...BASE_MESTRE_PADRAO, ...novaBase };
+      log(`Base personalizada carregada com ${Object.keys(novaBase).length} item(ns).`);
+      alert('Base carregada com sucesso.');
+    }
+
+    function salvarBaseNoNavegador() {
+      localStorage.setItem('thoth_base_mestre_v1', JSON.stringify(BASE_MESTRE));
+      log('Base salva no navegador.');
+      alert('Base salva no navegador com sucesso.');
+    }
+
+    function restaurarBaseSalva() {
+      const raw = localStorage.getItem('thoth_base_mestre_v1');
+      if (!raw) return false;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length) {
+          BASE_MESTRE = parsed;
+          log(`Base restaurada do navegador com ${Object.keys(BASE_MESTRE).length} item(ns).`);
+          return true;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      return false;
+    }
+
+    function limparBaseSalva() {
+      localStorage.removeItem('thoth_base_mestre_v1');
+      BASE_MESTRE = JSON.parse(JSON.stringify(BASE_MESTRE_PADRAO));
+      log('Base salva removida. Base padrão restaurada.');
+      alert('Base salva removida.');
     }
 
     $("filesInput").addEventListener('change', (e) => {
@@ -879,9 +950,18 @@
       baixarExcel(resultadoAtual);
     });
     $("btnBase").addEventListener('click', baixarBaseMestre);
+    $("baseInput").addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      await carregarBaseCustom(file);
+    });
+    $("btnSalvarBase").addEventListener('click', salvarBaseNoNavegador);
+    $("btnLimparBase").addEventListener('click', limparBaseSalva);
 
     setArquivosLista();
-    log('Base mestre carregada.');
+    if (!restaurarBaseSalva()) {
+      log('Base mestre padrão carregada.');
+    }
   </script>
 </body>
 </html>
