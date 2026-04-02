@@ -51,11 +51,21 @@ if not uploaded_files:
 
 # --- LEITURA DA BASE ---
 # A partir daqui, o sistema sabe que os arquivos foram carregados
-df_base = pd.read_excel(base_file)
-st.sidebar.success(f"✅ Base carregada: {len(df_base)} produtos!")
+# --- SUBSTITUI AS LINHAS 54 A 58 ---
+# 1. Carrega a base usando o arquivo que você subiu no menu lateral
+base_produtos = carregar_base(df_base)
 
-st.sidebar.title("📦 THOTH PRO Multi-Cliente")
+# 2. Junta todos os arquivos de pedido que você subiu de uma vez só
+lista_pedidos = []
+for file in uploaded_files:
+    df_temp = pd.read_excel(file)
+    lista_pedidos.append(df_temp)
 
+# Une tudo em uma tabela só para processar
+pedidos_df = pd.concat(lista_pedidos, ignore_index=True)
+
+# 3. Roda o seu motor de processamento original
+resultados, estatisticas, sem_base_df = processar_pedidos(pedidos_df, base_produtos)
 # --- PASSO 1: CARREGAR A BASE ---
 st.sidebar.markdown("### 🟡 1. CARREGAR BASE PRODUTOS")
 base_file = st.sidebar.file_uploader("Selecione sua base atualizada (table 2.xlsx)", type=["xlsx", "xls", "csv"], key="base")
