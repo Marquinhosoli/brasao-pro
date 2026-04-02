@@ -4,610 +4,391 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>THOTH PRO Multi-Cliente (Produção Final)</title>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <style>
-    :root{
-      --bg:#0b1020; --panel:#121a31; --panel2:#17213d; --line:#2a3b63;
-      --text:#e9eefb; --muted:#a8b5d3; --primary:#4f8cff; --primary2:#78a8ff;
-      --ok:#26c281; --warn:#ffb020; --danger:#ff6b6b; --radius:18px;
-      --shadow:0 18px 44px rgba(0,0,0,.28);
-    }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(180deg,#0a1020 0%,#111938 100%);color:var(--text);min-height:100vh}
-    .wrap{max-width:1280px;margin:0 auto;padding:24px}
-    .hero{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;margin-bottom:18px}
-    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px}
-    .card{background:rgba(18,26,49,.92);border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
-    .span-12{grid-column:span 12}.span-8{grid-column:span 8}.span-4{grid-column:span 4}.span-6{grid-column:span 6}
-    h1,h2,h3,p{margin:0}.muted{color:var(--muted)} h1{font-size:32px;line-height:1.05;margin-bottom:10px} h2{font-size:18px;margin-bottom:14px}
-    .toolbar,.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-    .pillrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-    .pill{padding:8px 10px;border-radius:999px;background:#1b2748;color:var(--muted);border:1px solid rgba(255,255,255,.08);font-size:12px;font-weight:700}
-    .stat{background:linear-gradient(180deg,var(--panel2),#101831);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:16px}
-    .stat .k{font-size:28px;font-weight:800;margin-top:6px}
-    button,.fake-input,select,input[type="text"]{border-radius:14px;font-size:14px}
-    button,.fake-input{padding:12px 16px;font-weight:800;cursor:pointer;border:none;transition:.18s ease}
-    button:hover,.fake-input:hover{transform:translateY(-1px)}
-    button.primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff}
-    button.secondary,.fake-input,select,input[type="text"]{background:#22315a;color:var(--text);border:1px solid rgba(255,255,255,.08)}
-    button:disabled{opacity:.55;cursor:not-allowed;transform:none}
-    input[type="file"]{display:none}
-    .log{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#0f1730;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;min-height:220px;max-height:440px;overflow:auto;color:#d6e2ff;font-size:12px}
-    .table-wrap{max-height:460px;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:14px}
-    table{width:100%;border-collapse:collapse;background:#0f1730}
-    th,td{padding:11px 10px;border-bottom:1px solid rgba(255,255,255,.06);text-align:left;font-size:13px}
-    th{position:sticky;top:0;background:#182445;color:#dbe7ff}
-    tbody tr:hover{background:rgba(255,255,255,.03)}
-    .ok{color:var(--ok)} .warn{color:var(--warn)} .danger{color:var(--danger)}
-    .small{font-size:12px;line-height:1.55}
-    @media(max-width:960px){.hero{grid-template-columns:1fr}.span-8,.span-4,.span-6,.span-12{grid-column:span 12}}
+    :root{--bg:#0b1220;--panel:#121a2b;--panel-2:#182338;--line:#28334a;--text:#ebf1ff;--muted:#9fb0d1;--ok:#1fb980;--warn:#ffb020;--bad:#ff5d5d;--accent:#4ea1ff}
+    *{box-sizing:border-box} body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,#0b1220,#0e1628 30%,#0c1423);color:var(--text)}
+    .wrap{max-width:1200px;margin:0 auto;padding:24px}.hero{background:linear-gradient(135deg,#16233a,#0f1a2d);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 16px 40px rgba(0,0,0,.25);margin-bottom:20px}
+    h1{margin:0 0 8px;font-size:30px}.sub{color:var(--muted);line-height:1.5;margin:0}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}.card{grid-column:span 12;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px}
+    .card h2{margin:0 0 14px;font-size:18px}.upload-box{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .zone{background:var(--panel-2);border:1px dashed #3f5174;border-radius:16px;padding:16px}.zone p{margin:6px 0 0;color:var(--muted);font-size:14px;line-height:1.5}
+    label.btn,button{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:12px;border:1px solid transparent;cursor:pointer;font-weight:700;font-size:14px;transition:.2s ease;text-decoration:none}
+    label.btn.primary,button.primary{background:var(--accent);color:white} label.btn.secondary,button.secondary{background:#22314d;color:var(--text);border-color:#30415f} button.success{background:var(--ok);color:#07140d}
+    button:disabled{opacity:.5;cursor:not-allowed} input[type=file]{display:none}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+    .stat{background:var(--panel-2);border:1px solid var(--line);border-radius:16px;padding:16px}.stat .k{font-size:28px;font-weight:800;margin:4px 0}.muted{color:var(--muted)}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+    table{width:100%;border-collapse:collapse;font-size:13px} th,td{border-bottom:1px solid var(--line);text-align:left;padding:10px 8px;vertical-align:top} th{color:#c8d6f3;background:#152038;position:sticky;top:0}
+    .table-wrap{max-height:380px;overflow:auto;border:1px solid var(--line);border-radius:14px}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-weight:700;font-size:12px}.pill.ok{background:rgba(31,185,128,.14)}.pill.warn{background:rgba(255,176,32,.14)}.pill.bad{background:rgba(255,93,93,.14)}
+    .small{font-size:12px;color:var(--muted)} .footer-note{margin-top:12px;color:var(--muted);font-size:13px;line-height:1.5}.cols-6{grid-column:span 6}
+    @media (max-width:900px){.upload-box,.stats{grid-template-columns:1fr}.cols-6{grid-column:span 12}}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="hero">
+    <section class="hero">
+      <h1>THOTH PRO Multi-Cliente (Produção Final)</h1>
+      <p class="sub">Motor web para processar pedidos hortifruti, converter tudo para <strong>CAIXAS</strong> e gerar um único Excel no padrão operacional do ERP Thoth.</p>
+    </section>
+
+    <section class="grid">
       <div class="card">
-        <h1>THOTH PRO <span class="ok">Multi-Cliente</span></h1>
-        <p class="muted">Processador hortifruti com base mestre, normalização inteligente e geração final no padrão do ERP Thoth.</p>
-        <div class="pillrow">
-          <span class="pill">FRUTAS + LEGUMES</span>
-          <span class="pill">Conversão KG / BDJ / UN</span>
-          <span class="pill">Arredondamento para cima</span>
-          <span class="pill">Zero conversão sem base</span>
-          <span class="pill">Multi-arquivo</span>
+        <h2>Arquivos de entrada</h2>
+        <div class="upload-box">
+          <div class="zone">
+            <label class="btn primary" for="baseFile">Selecionar base mestre</label>
+            <input id="baseFile" type="file" accept=".xlsx,.xls,.csv" />
+            <p id="baseInfo">Nenhuma base carregada. Você pode subir sua base mestre com colunas como: produto, categoria, tipo, peso_caixa, bandejas_por_caixa, unidades_caixa, sinonimos.</p>
+          </div>
+          <div class="zone">
+            <label class="btn secondary" for="orderFiles">Selecionar pedido(s)</label>
+            <input id="orderFiles" type="file" accept=".xlsx,.xls,.csv" multiple />
+            <p id="ordersInfo">Nenhum pedido selecionado. Envie um ou mais arquivos de pedido em Excel/CSV. PDF deve estar previamente convertido para planilha.</p>
+          </div>
         </div>
+
+        <div class="actions">
+          <button id="processBtn" class="primary">PROCESSAR</button>
+          <button id="downloadBtn" class="success" disabled>BAIXAR EXCEL</button>
+          <button id="loadDemoBaseBtn" class="secondary">Usar base modelo</button>
+        </div>
+
+        <div class="footer-note">A saída final gera apenas as abas <strong>FRUTAS</strong> e <strong>LEGUMES</strong> no layout fixo do ERP. Itens com <strong>SEM BASE</strong> ou <strong>BASE INCOMPLETA</strong> ficam no painel de erros e <strong>não entram</strong> nas abas finais.</div>
       </div>
+
       <div class="card">
-        <h2>Painel rápido</h2>
-        <div class="grid">
-          <div class="stat span-6"><div class="muted">Arquivos</div><div id="statArquivos" class="k">0</div></div>
-          <div class="stat span-6"><div class="muted">Linhas lidas</div><div id="statLinhas" class="k">0</div></div>
-          <div class="stat span-6"><div class="muted">Convertidos</div><div id="statConvertidos" class="k">0</div></div>
-          <div class="stat span-6"><div class="muted">Com erro</div><div id="statErros" class="k danger">0</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card span-8">
-        <h2>Processamento</h2>
-        <div class="toolbar" style="margin-bottom:12px">
-          <label class="fake-input" for="filesInput">📂 Selecionar pedido(s)</label>
-          <input id="filesInput" type="file" accept=".xlsx,.xls,.csv" multiple />
-
-          <label class="fake-input" for="baseInput">🧠 Carregar base mestre</label>
-          <input id="baseInput" type="file" accept=".xlsx,.xls,.csv" />
-
-          <select id="modoCliente">
-            <option value="AUTO">Cliente: AUTO</option>
-            <option value="BRASAO">Cliente: BRASÃO</option>
-            <option value="KROSS">Cliente: KROSS</option>
-            <option value="MISTO">Cliente: MISTO</option>
-          </select>
-
-          <input id="nomeSaida" type="text" value="THOTH_PRO_MULTI_CLIENTE_FINAL" placeholder="Nome do arquivo final" />
-          <button id="btnProcessar" class="primary">PROCESSAR</button>
-          <button id="btnBaixar" class="secondary" disabled>BAIXAR EXCEL</button>
-          <button id="btnBaixarBase" class="secondary">BAIXAR BASE MODELO</button>
-        </div>
-        <div class="small muted">
-          Saída fixa: <strong>PRODUTO | BRASAO FERNANDO | BRASAO JARDIM | BRASAO XAXIM | BRASAO AVENIDA | KROSS ATACADO | KROSS XAXIM</strong>.<br>
-          Itens com <strong>SEM BASE</strong>, <strong>BASE INCOMPLETA</strong> ou loja não identificada aparecem no log e ficam fora das abas finais.
+        <h2>Painel de processamento</h2>
+        <div class="stats">
+          <div class="stat"><div class="muted">Total de itens lidos</div><div class="k" id="statTotal">0</div></div>
+          <div class="stat"><div class="muted">Itens convertidos</div><div class="k ok" id="statConverted">0</div></div>
+          <div class="stat"><div class="muted">SEM BASE</div><div class="k bad" id="statSemBase">0</div></div>
+          <div class="stat"><div class="muted">BASE INCOMPLETA</div><div class="k warn" id="statBaseIncompleta">0</div></div>
         </div>
       </div>
 
-      <div class="card span-4">
-        <h2>Status</h2>
-        <div id="arquivosLista" class="log">Nenhum arquivo selecionado.</div>
-      </div>
+      <div class="card cols-6"><h2>Resumo</h2><div id="summary" class="small">Aguardando processamento.</div></div>
+      <div class="card cols-6"><h2>Prévia ERP</h2><div id="preview" class="small">As abas finais aparecerão aqui após o processamento.</div></div>
 
-      <div class="card span-8">
-        <h2>Prévia operacional</h2>
+      <div class="card">
+        <h2>Itens com erro</h2>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>Arquivo</th><th>Aba</th><th>Loja</th><th>Produto</th><th>Qtd original</th><th>Unid.</th><th>Caixas</th><th>Status</th>
-              </tr>
+              <tr><th>Status</th><th>Produto original</th><th>Produto normalizado</th><th>Loja</th><th>Qtd</th><th>Tipo detectado</th><th>Motivo</th></tr>
             </thead>
-            <tbody id="previewBody"><tr><td colspan="8" class="muted">Ainda sem processamento.</td></tr></tbody>
+            <tbody id="errorTableBody"><tr><td colspan="7" class="muted">Nenhum item com erro.</td></tr></tbody>
           </table>
         </div>
       </div>
-
-      <div class="card span-4">
-        <h2>Log técnico</h2>
-        <div id="logBox" class="log">Sistema pronto.</div>
-      </div>
-    </div>
+    </section>
   </div>
 
-  <script>
-    const OUTPUT_COLUMNS = [
-      'PRODUTO',
-      'BRASAO FERNANDO',
-      'BRASAO JARDIM',
-      'BRASAO XAXIM',
-      'BRASAO AVENIDA',
-      'KROSS ATACADO',
-      'KROSS XAXIM'
-    ];
+<script>
+(() => {
+  const ERP_COLUMNS = ["PRODUTO","BRASAO FERNANDO","BRASAO JARDIM","BRASAO XAXIM","BRASAO AVENIDA","KROSS ATACADO","KROSS XAXIM"];
+  const state = {baseRows:[],baseMap:new Map(),orderFiles:[],outputWorkbook:null,outputFilename:"THOTH_PRO_MULTI_CLIENTE_RESULTADO.xlsx",result:null};
+  const els = {
+    baseFile:document.getElementById("baseFile"),
+    orderFiles:document.getElementById("orderFiles"),
+    processBtn:document.getElementById("processBtn"),
+    downloadBtn:document.getElementById("downloadBtn"),
+    loadDemoBaseBtn:document.getElementById("loadDemoBaseBtn"),
+    baseInfo:document.getElementById("baseInfo"),
+    ordersInfo:document.getElementById("ordersInfo"),
+    statTotal:document.getElementById("statTotal"),
+    statConverted:document.getElementById("statConverted"),
+    statSemBase:document.getElementById("statSemBase"),
+    statBaseIncompleta:document.getElementById("statBaseIncompleta"),
+    summary:document.getElementById("summary"),
+    preview:document.getElementById("preview"),
+    errorTableBody:document.getElementById("errorTableBody")
+  };
 
-    const DEFAULT_BASE_ROWS = [
-      ['produto','categoria','tipo','peso_caixa','bandejas_por_caixa','unidades_caixa','sinonimos'],
-      ['Abacaxi','FRUTAS','UN','','','10','abacaxi perola|abacaxi unidade'],
-      ['Ameixa 500g','FRUTAS','BDJ','','20','','ameixa bdj|ameixa bandeja'],
-      ['Batata','LEGUMES','KG','25','','','batata kg'],
-      ['Blueberry 125g','FRUTAS','BDJ','','12','','mirtilo blueberry|mirtilo|blueberry'],
-      ['Carambola 400g','FRUTAS','BDJ','','4','','carambola|carambola bdj|carambola 400 gr'],
-      ['Cebola Albina','LEGUMES','KG','20','','','cebola argentina|cebola'],
-      ['Figo Roxo','FRUTAS','BDJ','','1','','figo|figo roxo bdj'],
-      ['Laranja','FRUTAS','KG','20','','','laranja pera|laranja kg'],
-      ['Limão','FRUTAS','KG','20','','','limao'],
-      ['Mamão Papaya','FRUTAS','UN','','','18','mamao papaya|mamão papaya'],
-      ['Maracujá','FRUTAS','KG','10','','','maracuja'],
-      ['Maxixe 300g','LEGUMES','BDJ','','2','','maxixe|maxixe bdj'],
-      ['Melão','FRUTAS','KG','12','','','melao'],
-      ['Milho','LEGUMES','UN','','','30','milho verde'],
-      ['Mirtilo 125g','FRUTAS','BDJ','','12','','mirtilo|blueberry 125g'],
-      ['Morango','FRUTAS','BDJ','','4','','morango bdj'],
-      ['Physalis 100g','FRUTAS','UN','','','8','physalis importado|physalis'],
-      ['Repolho Roxo','LEGUMES','KG','20','','','repolho roxo kg'],
-      ['Tomate Grap','LEGUMES','BDJ','','24','','tomate grape demarchi|tomate grape|tomate grape bdj|tomate grap'],
-      ['Uva Thompson 500g','FRUTAS','BDJ','','10','','uva thompson s/semente|uva thompson|uva 500g']
-    ];
+  const DEMO_BASE = [
+    {produto:"ABACAXI", categoria:"FRUTAS", tipo:"UN", unidades_caixa:10, sinonimos:"ABACAXI HAWAI;ABACAXI PEROLA"},
+    {produto:"BLUEBERRY 125G", categoria:"FRUTAS", tipo:"BDJ", bandejas_por_caixa:12, sinonimos:"MIRTILO BLUEBERRY;MIRTILO;BLUEBERRY"},
+    {produto:"CEBOLA ALBINA", categoria:"LEGUMES", tipo:"KG", peso_caixa:20, sinonimos:"CEBOLA ARGENTINA"},
+    {produto:"LARANJA PERA", categoria:"FRUTAS", tipo:"KG", peso_caixa:20, sinonimos:"LARANJA"},
+    {produto:"LIMAO TAHITI", categoria:"FRUTAS", tipo:"KG", peso_caixa:20, sinonimos:"LIMAO;LIMAO TAHITI"},
+    {produto:"MAMAO PAPAYA", categoria:"FRUTAS", tipo:"UN", unidades_caixa:18, sinonimos:"MAMAO PAPAYA;PAPAYA"},
+    {produto:"MELAO", categoria:"FRUTAS", tipo:"UN", unidades_caixa:10, sinonimos:"MELAO"},
+    {produto:"MORANGO", categoria:"FRUTAS", tipo:"BDJ", bandejas_por_caixa:4, sinonimos:"MORANGO 250G"},
+    {produto:"PHYSALIS IMPORTADO 100G", categoria:"FRUTAS", tipo:"UN", unidades_caixa:8, sinonimos:"PHYSALIS IMPORTADO;PHYSALIS"},
+    {produto:"TOMATE GRAP", categoria:"LEGUMES", tipo:"BDJ", bandejas_por_caixa:24, sinonimos:"TOMATE GRAPE DEMARCHI;TOMATE GRAPE;TOMATE GRAPE 180G"},
+    {produto:"UVA THOMPSON 500G", categoria:"FRUTAS", tipo:"BDJ", bandejas_por_caixa:10, sinonimos:"UVA THOMPSON S/SEMENTE;UVA THOMPSON S SEMENTE;UVA THOMPSON"},
+    {produto:"CARAMBOLA 400G", categoria:"FRUTAS", tipo:"BDJ", bandejas_por_caixa:4, sinonimos:"CARAMBOLA"}
+  ];
 
-    const STORE_PATTERNS = [
-      { id:'BRASAO FERNANDO', patterns:['brasao fernando','fernando','centro brasao','loja 1','ce '] },
-      { id:'BRASAO JARDIM', patterns:['brasao jardim','jardim','já ','ja ','jardim america','loja 2'] },
-      { id:'BRASAO XAXIM', patterns:['brasao xaxim','xaxim brasao','xx ','loja 3'] },
-      { id:'BRASAO AVENIDA', patterns:['brasao avenida','avenida','av ','loja 4'] },
-      { id:'KROSS ATACADO', patterns:['kross atacado','kross chapeco','kross chapeó','chapeco','atacado','loja 1 atacado'] },
-      { id:'KROSS XAXIM', patterns:['kross xaxim','xaxim kross','loja 2 xaxim'] }
-    ];
+  function normalizeText(text){
+    return String(text ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim();
+  }
 
-    const STRIP_TOKENS = [
-      'demarchi','shelf','kg','quilo','quilos','bdj','bandeja','bandejas','und','un','unid','unidade','unidades',
-      'brasao','kross','fruta','frutas','legume','legumes','hortifruti'
+  function normalizeProduct(raw){
+    let s = normalizeText(raw);
+    const removals = [
+      /\bDEMARCHI\b/g,/\bSHELF\s*\d+\b/g,/\bKG\b/g,/\bFRUTA\b/g,/\bLEGUME\b/g,
+      /\bUND\b/g,/\bUNID\b/g,/\bUNIDADE\b/g,/\bBDJ\b/g,/\bBANDEJA\b/g,/\bC\/\d+G\b/g,/\b\d+G\b/g
     ];
+    removals.forEach(rx => s = s.replace(rx," "));
+    s = s.replace(/\s+/g," ").trim();
 
-    const MANUAL_NORMALIZATION = new Map([
-      ['tomate grape demarchi','Tomate Grap'],
-      ['tomate grape','Tomate Grap'],
-      ['uva thompson s semente','Uva Thompson 500g'],
-      ['uva thompson ssemente','Uva Thompson 500g'],
-      ['uva thompson sem semente','Uva Thompson 500g'],
-      ['mirtilo blueberry','Blueberry 125g'],
-      ['blueberry','Blueberry 125g'],
-      ['cebola argentina','Cebola Albina'],
-      ['physalis importado','Physalis 100g'],
-      ['carambola','Carambola 400g'],
-      ['figo roxo','Figo Roxo'],
-      ['figo','Figo Roxo'],
-      ['maxixe','Maxixe 300g']
+    const exactMap = new Map([
+      ["TOMATE GRAPE DEMARCHI","TOMATE GRAP"],
+      ["TOMATE GRAPE","TOMATE GRAP"],
+      ["UVA THOMPSON S/SEMENTE","UVA THOMPSON 500G"],
+      ["UVA THOMPSON S SEMENTE","UVA THOMPSON 500G"],
+      ["MIRTILO BLUEBERRY","BLUEBERRY 125G"],
+      ["BLUEBERRY","BLUEBERRY 125G"],
+      ["CEBOLA ARGENTINA","CEBOLA ALBINA"],
+      ["PHYSALIS IMPORTADO","PHYSALIS IMPORTADO 100G"],
+      ["PHYSALIS","PHYSALIS IMPORTADO 100G"],
+      ["CARAMBOLA","CARAMBOLA 400G"]
     ]);
+    if (exactMap.has(s)) return exactMap.get(s);
+    if (s.includes("TOMATE") && s.includes("GRAPE")) return "TOMATE GRAP";
+    if (s.includes("UVA") && s.includes("THOMPSON")) return "UVA THOMPSON 500G";
+    if (s.includes("MIRTILO") || s.includes("BLUEBERRY")) return "BLUEBERRY 125G";
+    if (s.includes("CEBOLA") && s.includes("ARGENTINA")) return "CEBOLA ALBINA";
+    if (s.includes("PHYSALIS")) return "PHYSALIS IMPORTADO 100G";
+    if (s.includes("CARAMBOLA")) return "CARAMBOLA 400G";
+    return s;
+  }
 
-    const state = {
-      files: [],
-      workbookOut: null,
-      rows: [],
-      logs: [],
-      baseMap: new Map(),
-      baseRows: []
-    };
+  function parseMaybeNumber(v){
+    if (typeof v === "number") return isFinite(v) ? v : NaN;
+    const s = String(v ?? "").trim();
+    if (!s) return NaN;
+    const clean = s.replace(/\./g,"").replace(",",".");
+    const n = Number(clean);
+    return isFinite(n) ? n : NaN;
+  }
 
-    const $ = (id) => document.getElementById(id);
-    const log = (msg) => {
-      state.logs.push(msg);
-      $('logBox').textContent = state.logs.join('\n');
-      $('logBox').scrollTop = $('logBox').scrollHeight;
-    };
+  function padronizarLoja(raw, fallbackFileName=""){
+    const full = normalizeText((raw || "") + " " + (fallbackFileName || ""));
+    if (full.includes("FERNANDO")) return "BRASAO FERNANDO";
+    if (full.includes("JARDIM")) return "BRASAO JARDIM";
+    if (full.includes("BRASAO") && full.includes("XAXIM")) return "BRASAO XAXIM";
+    if (full.includes("AVENIDA")) return "BRASAO AVENIDA";
+    if (full.includes("KROSS") && full.includes("ATACADO")) return "KROSS ATACADO";
+    if (full.includes("KROSS") && full.includes("XAXIM")) return "KROSS XAXIM";
+    if (full.includes("BRASAO") && full.includes("CE")) return "BRASAO FERNANDO";
+    if (full.includes("BRASAO") && full.includes("JA")) return "BRASAO JARDIM";
+    if (full.includes("BRASAO") && full.includes("XX")) return "BRASAO XAXIM";
+    if (full.includes("BRASAO") && full.includes("AV")) return "BRASAO AVENIDA";
+    if (full.includes("KROSS") && full.includes("XX")) return "KROSS XAXIM";
+    return "";
+  }
 
-    function normalizeText(value) {
-      return String(value ?? '')
-        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-        .toLowerCase()
-        .replace(/[\u00BA\u00AA]/g,'')
-        .replace(/[^a-z0-9]+/g,' ')
-        .replace(/\s+/g,' ')
-        .trim();
+  function detectColumns(rows){
+    const headers = rows.length ? Object.keys(rows[0]) : [];
+    const norm = headers.map(h => normalizeText(h));
+    let prod = headers[0] || null, qtd = headers[1] || null, loja = null, tipo = null;
+    norm.forEach((h, i) => {
+      if (["PRODUTO","DESCRICAO","ITEM","MERCADORIA"].some(k => h.includes(k))) prod = headers[i];
+      if (["QTD","QUANT","QUANTIDADE","PEDIDO","QTDE","VOLUME"].some(k => h.includes(k))) qtd = headers[i];
+      if (["LOJA","CLIENTE","DESTINO","FILIAL"].some(k => h.includes(k))) loja = headers[i];
+      if (["TIPO","UNIDADE","UND","MEDIDA"].some(k => h.includes(k))) tipo = headers[i];
+    });
+    return {prod, qtd, loja, tipo};
+  }
+
+  function detectTypeFromText(text){
+    const s = normalizeText(text);
+    if (/\bKG\b/.test(s)) return "KG";
+    if (/\bBDJ\b|\bBANDEJA\b/.test(s)) return "BDJ";
+    if (/\bUND\b|\bUNID\b|\bUNIDADE\b|\bUN\b/.test(s)) return "UN";
+    return "";
+  }
+
+  function toBaseMap(baseRows){
+    const map = new Map();
+    for (const row of baseRows){
+      const produto = row.produto ?? row.PRODUTO ?? row.produto_base ?? row.PRODUTO_BASE ?? "";
+      const categoria = normalizeText(row.categoria ?? row.CATEGORIA ?? "");
+      const tipo = normalizeText(row.tipo ?? row.TIPO ?? row.modo_conversao ?? row.MODO_CONVERSAO ?? "");
+      const peso_caixa = parseMaybeNumber(row.peso_caixa ?? row.PESO_CAIXA);
+      const bandejas_por_caixa = parseMaybeNumber(row.bandejas_por_caixa ?? row.BANDEJAS_POR_CAIXA);
+      const unidades_caixa = parseMaybeNumber(row.unidades_caixa ?? row.UNIDADES_CAIXA ?? row.itens_por_caixa ?? row.ITENS_POR_CAIXA);
+      const sinonimos = String(row.sinonimos ?? row.SINONIMOS ?? "").split(";").map(s => s.trim()).filter(Boolean);
+      const produtoNorm = normalizeProduct(produto);
+      if (!produtoNorm) continue;
+      const item = {produto:produtoNorm,categoria,tipo,peso_caixa,bandejas_por_caixa,unidades_caixa};
+      map.set(produtoNorm, item);
+      for (const sin of sinonimos) map.set(normalizeProduct(sin), item);
     }
+    return map;
+  }
 
-    function niceInt(n) {
-      const num = Number(n || 0);
-      return Number.isFinite(num) ? Math.trunc(num).toString() : '0';
-    }
+  function requiredFactorMissing(baseItem){
+    if (baseItem.tipo === "KG") return !(baseItem.peso_caixa > 0);
+    if (baseItem.tipo === "BDJ") return !(baseItem.bandejas_por_caixa > 0);
+    if (baseItem.tipo === "UN") return !(baseItem.unidades_caixa > 0);
+    return true;
+  }
 
-    function parseNumber(v) {
-      if (v == null || v === '') return null;
-      if (typeof v === 'number') return Number.isFinite(v) ? v : null;
-      let s = String(v).trim();
-      if (!s) return null;
-      s = s.replace(/\./g,'').replace(',', '.').replace(/[^0-9.-]/g,'');
-      if (!s || s === '-' || s === '.') return null;
-      const n = Number(s);
-      return Number.isFinite(n) ? n : null;
-    }
+  function convertToBoxes(qtd, baseItem){
+    if (baseItem.tipo === "KG") return Math.ceil(qtd / baseItem.peso_caixa);
+    if (baseItem.tipo === "BDJ") return Math.ceil(qtd / baseItem.bandejas_por_caixa);
+    if (baseItem.tipo === "UN") return Math.ceil(qtd / baseItem.unidades_caixa);
+    throw new Error("Tipo de conversao invalido");
+  }
 
-    function ceilDiv(qtd, base) {
-      const q = parseNumber(qtd);
-      const b = parseNumber(base);
-      if (!(q > 0) || !(b > 0)) return null;
-      return Math.ceil(q / b);
-    }
+  async function fileToRows(file){
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, {type:"array"});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(sheet, {defval:""});
+  }
 
-    function updateFilesList() {
-      $('statArquivos').textContent = String(state.files.length);
-      if (!state.files.length) {
-        $('arquivosLista').textContent = 'Nenhum arquivo selecionado.';
-        return;
+  function buildERPTable(items, category){
+    const filtered = items.filter(x => x.categoria === category && x.status === "OK");
+    const map = new Map();
+    for (const row of filtered){
+      if (!map.has(row.produto_base)){
+        const baseRow = {};
+        ERP_COLUMNS.forEach(c => baseRow[c] = c === "PRODUTO" ? row.produto_base : 0);
+        map.set(row.produto_base, baseRow);
       }
-      $('arquivosLista').textContent = state.files.map(f => `${f.name}`).join('\n');
+      if (ERP_COLUMNS.includes(row.loja)) map.get(row.produto_base)[row.loja] += row.caixas;
     }
-
-    function downloadBlob(blob, filename) {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1200);
-    }
-
-    function loadDefaultBase() {
-      const rows = DEFAULT_BASE_ROWS.map(r => ({
-        produto: r[0], categoria: r[1], tipo: r[2], peso_caixa: r[3], bandejas_por_caixa: r[4], unidades_caixa: r[5], sinonimos: r[6]
-      }));
-      buildBaseMap(rows);
-      log('Base padrão carregada.');
-    }
-
-    function buildBaseMap(rows) {
-      state.baseRows = rows;
-      state.baseMap = new Map();
-      rows.forEach(row => {
-        const produto = String(row.produto || '').trim();
-        if (!produto) return;
-        const entry = {
-          produto,
-          categoria: String(row.categoria || '').trim().toUpperCase(),
-          tipo: String(row.tipo || '').trim().toUpperCase(),
-          peso_caixa: parseNumber(row.peso_caixa),
-          bandejas_por_caixa: parseNumber(row.bandejas_por_caixa),
-          unidades_caixa: parseNumber(row.unidades_caixa),
-          sinonimos: String(row.sinonimos || '').split(/[|;]/).map(s => s.trim()).filter(Boolean)
-        };
-        const keys = new Set([normalizeProductKey(produto), normalizeText(produto)]);
-        entry.sinonimos.forEach(s => keys.add(normalizeProductKey(s)));
-        keys.forEach(k => { if (k) state.baseMap.set(k, entry); });
-      });
-    }
-
-    function normalizeProductKey(text) {
-      let t = normalizeText(text);
-      t = t.replace(/\b\d+(?:[.,]\d+)?\s*g\b/g,' ');
-      t = t.replace(/\b\d+(?:[.,]\d+)?\s*kg\b/g,' ');
-      t = t.replace(/\bshelf\s*\d+\b/g,' ');
-      STRIP_TOKENS.forEach(token => {
-        t = t.replace(new RegExp(`\\b${token}\\b`, 'g'), ' ');
-      });
-      return t.replace(/\s+/g,' ').trim();
-    }
-
-    function normalizeProductName(raw) {
-      const rawNorm = normalizeText(raw);
-      if (MANUAL_NORMALIZATION.has(rawNorm)) return MANUAL_NORMALIZATION.get(rawNorm);
-      const rawKey = normalizeProductKey(raw);
-      if (MANUAL_NORMALIZATION.has(rawKey)) return MANUAL_NORMALIZATION.get(rawKey);
-      const exact = state.baseMap.get(rawKey) || state.baseMap.get(rawNorm);
-      if (exact) return exact.produto;
-
-      let best = null;
-      let bestScore = 0;
-      const rawTokens = new Set(rawKey.split(' ').filter(Boolean));
-      for (const [key, entry] of state.baseMap.entries()) {
-        const tokens = key.split(' ').filter(Boolean);
-        if (!tokens.length || !rawTokens.size) continue;
-        let score = 0;
-        tokens.forEach(tok => { if (rawTokens.has(tok)) score += 1; });
-        if (score > bestScore && score >= Math.max(1, Math.ceil(tokens.length * 0.5))) {
-          bestScore = score;
-          best = entry.produto;
-        }
-      }
-      return best || raw.trim();
-    }
-
-    function detectStoreFromText(text, forcedMode='AUTO') {
-      const t = normalizeText(text);
-      const viable = STORE_PATTERNS.filter(rule => {
-        if (forcedMode === 'BRASAO') return rule.id.startsWith('BRASAO');
-        if (forcedMode === 'KROSS') return rule.id.startsWith('KROSS');
-        return true;
-      });
-      for (const rule of viable) {
-        if (rule.patterns.some(p => t.includes(normalizeText(p)))) return rule.id;
-      }
-      return '';
-    }
-
-    function inferUnit(produtoTexto, rowText) {
-      const t = normalizeText(`${produtoTexto} ${rowText}`);
-      if (/\bbdj\b|\bbandeja\b/.test(t)) return 'BDJ';
-      if (/\bund\b|\bunidade\b|\bunid\b/.test(t)) return 'UN';
-      if (/\bkg\b|\bkilo\b/.test(t)) return 'KG';
-      return '';
-    }
-
-    function getBaseEntry(productName) {
-      return state.baseMap.get(normalizeProductKey(productName)) || state.baseMap.get(normalizeText(productName)) || null;
-    }
-
-    function convertItem(productRaw, qtdOriginal, unitRaw) {
-      const produto = normalizeProductName(productRaw);
-      const base = getBaseEntry(produto);
-      if (!base) return { produto, caixas: 0, status: 'SEM BASE', categoria: '', tipoBase: '' };
-      const tipo = base.tipo;
-      let caixas = null;
-      if (tipo === 'KG') caixas = ceilDiv(qtdOriginal, base.peso_caixa);
-      if (tipo === 'BDJ') caixas = ceilDiv(qtdOriginal, base.bandejas_por_caixa);
-      if (tipo === 'UN') caixas = ceilDiv(qtdOriginal, base.unidades_caixa);
-      if (!caixas && caixas !== 0) return { produto: base.produto, caixas: 0, status: 'BASE INCOMPLETA', categoria: base.categoria, tipoBase: tipo };
-      return { produto: base.produto, caixas, status: 'OK', categoria: base.categoria, tipoBase: tipo };
-    }
-
-    function toRowsFromSheet(sheet, fileName, sheetName, forcedMode) {
-      const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '' });
-      if (!matrix.length) return [];
-
-      const headerIdx = findHeaderRow(matrix);
-      const header = (matrix[headerIdx] || []).map(v => normalizeText(v));
-      const idx = {
-        produto: findIndex(header, ['produto','descricao','descrição','item','mercadoria']),
-        qtd: findIndex(header, ['quantidade','qtd','qtde','pedido','volume']),
-        unidade: findIndex(header, ['unidade','tipo','emb','embalagem','und']),
-        loja: findIndex(header, ['loja','filial','cliente','destino','unidade'])
-      };
-
-      const fallbackStore = detectStoreFromText(`${fileName} ${sheetName}`, forcedMode);
-      const out = [];
-      for (let r = headerIdx + 1; r < matrix.length; r++) {
-        const row = matrix[r] || [];
-        const rowText = row.map(v => String(v ?? '')).join(' ');
-        if (!row.some(v => String(v ?? '').trim())) continue;
-
-        let produto = idx.produto >= 0 ? String(row[idx.produto] ?? '').trim() : '';
-        let quantidade = idx.qtd >= 0 ? parseNumber(row[idx.qtd]) : null;
-        let unidade = idx.unidade >= 0 ? String(row[idx.unidade] ?? '').trim() : '';
-        let loja = idx.loja >= 0 ? String(row[idx.loja] ?? '').trim() : '';
-
-        if ((!produto || quantidade == null) && row.length >= 2) {
-          const candidates = row.filter(v => String(v ?? '').trim());
-          const possibleProduct = candidates.find(v => /[a-zA-ZÀ-ÿ]/.test(String(v)));
-          const possibleNumber = candidates.map(parseNumber).find(v => v > 0);
-          if (!produto && possibleProduct) produto = String(possibleProduct).trim();
-          if (quantidade == null && possibleNumber != null) quantidade = possibleNumber;
-        }
-
-        if (!produto || !(quantidade > 0)) continue;
-
-        const lojaFinal = detectStoreFromText(loja, forcedMode) || fallbackStore;
-        const unidadeFinal = unidade || inferUnit(produto, rowText);
-        const conv = convertItem(produto, quantidade, unidadeFinal);
-
-        out.push({
-          arquivo: fileName,
-          aba: sheetName,
-          loja: lojaFinal,
-          produto_original: produto,
-          produto: conv.produto,
-          categoria: conv.categoria,
-          quantidade_original: quantidade,
-          unidade_original: unidadeFinal,
-          caixas: conv.caixas,
-          status: lojaFinal ? conv.status : 'LOJA NAO IDENTIFICADA'
-        });
-      }
+    return [...map.values()].sort((a,b) => a.PRODUTO.localeCompare(b.PRODUTO,"pt-BR")).map(r => {
+      const out = {};
+      ERP_COLUMNS.forEach(c => out[c] = c === "PRODUTO" ? r[c] : Math.trunc(r[c] || 0));
       return out;
-    }
-
-    function findHeaderRow(matrix) {
-      let bestIdx = 0;
-      let bestScore = -1;
-      matrix.slice(0, 20).forEach((row, i) => {
-        const text = row.map(v => normalizeText(v));
-        let score = 0;
-        if (text.some(t => ['produto','descricao','descrição','item','mercadoria'].includes(t))) score += 3;
-        if (text.some(t => ['quantidade','qtd','qtde','pedido'].includes(t))) score += 3;
-        if (text.some(t => ['loja','filial','cliente','destino','unidade'].includes(t))) score += 2;
-        if (score > bestScore) { bestScore = score; bestIdx = i; }
-      });
-      return bestIdx;
-    }
-
-    function findIndex(header, names) {
-      return header.findIndex(h => names.includes(h));
-    }
-
-    async function readWorkbook(file) {
-      const ext = file.name.split('.').pop().toLowerCase();
-      if (ext === 'csv') {
-        const text = await file.text();
-        const wb = XLSX.read(text, { type: 'string' });
-        return wb;
-      }
-      const buf = await file.arrayBuffer();
-      return XLSX.read(buf, { type: 'array' });
-    }
-
-    function aggregateForOutput(rows) {
-      const valid = rows.filter(r => r.status === 'OK' && OUTPUT_COLUMNS.includes(r.loja));
-      const fruits = new Map();
-      const legumes = new Map();
-
-      const bump = (map, produto, loja, caixas) => {
-        if (!map.has(produto)) {
-          const obj = Object.fromEntries(OUTPUT_COLUMNS.map(c => [c, 0]));
-          obj['PRODUTO'] = produto;
-          map.set(produto, obj);
-        }
-        map.get(produto)[loja] += Number(caixas || 0);
-      };
-
-      valid.forEach(r => {
-        if (r.categoria === 'FRUTAS') bump(fruits, r.produto, r.loja, r.caixas);
-        if (r.categoria === 'LEGUMES') bump(legumes, r.produto, r.loja, r.caixas);
-      });
-
-      const toSheetData = (map) => Array.from(map.values())
-        .sort((a,b) => String(a.PRODUTO).localeCompare(String(b.PRODUTO), 'pt-BR'))
-        .map(row => {
-          const out = {};
-          OUTPUT_COLUMNS.forEach(col => out[col] = col === 'PRODUTO' ? row[col] : (row[col] || 0));
-          return out;
-        });
-
-      return { frutas: toSheetData(fruits), legumes: toSheetData(legumes) };
-    }
-
-    function buildWorkbook(output) {
-      const wb = XLSX.utils.book_new();
-      const frutasWs = XLSX.utils.json_to_sheet(output.frutas.length ? output.frutas : [Object.fromEntries(OUTPUT_COLUMNS.map(c => [c, c === 'PRODUTO' ? '' : 0]))], { header: OUTPUT_COLUMNS });
-      const legumesWs = XLSX.utils.json_to_sheet(output.legumes.length ? output.legumes : [Object.fromEntries(OUTPUT_COLUMNS.map(c => [c, c === 'PRODUTO' ? '' : 0]))], { header: OUTPUT_COLUMNS });
-      frutasWs['!cols'] = OUTPUT_COLUMNS.map((c, i) => ({ wch: i === 0 ? 34 : 16 }));
-      legumesWs['!cols'] = OUTPUT_COLUMNS.map((c, i) => ({ wch: i === 0 ? 34 : 16 }));
-      XLSX.utils.book_append_sheet(wb, frutasWs, 'FRUTAS');
-      XLSX.utils.book_append_sheet(wb, legumesWs, 'LEGUMES');
-      return wb;
-    }
-
-    function renderPreview(rows) {
-      const body = $('previewBody');
-      const sample = rows.slice(0, 250);
-      if (!sample.length) {
-        body.innerHTML = '<tr><td colspan="8" class="muted">Sem dados.</td></tr>';
-        return;
-      }
-      body.innerHTML = sample.map(r => `
-        <tr>
-          <td>${escapeHtml(r.arquivo)}</td>
-          <td>${escapeHtml(r.aba)}</td>
-          <td>${escapeHtml(r.loja || '')}</td>
-          <td>${escapeHtml(r.produto)}</td>
-          <td>${escapeHtml(niceInt(r.quantidade_original))}</td>
-          <td>${escapeHtml(r.unidade_original || '')}</td>
-          <td>${escapeHtml(niceInt(r.caixas))}</td>
-          <td class="${r.status === 'OK' ? 'ok' : 'danger'}">${escapeHtml(r.status)}</td>
-        </tr>`).join('');
-    }
-
-    function escapeHtml(s) {
-      return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-    }
-
-    function updateStats(rows) {
-      $('statLinhas').textContent = String(rows.length);
-      $('statConvertidos').textContent = String(rows.filter(r => r.status === 'OK').length);
-      $('statErros').textContent = String(rows.filter(r => r.status !== 'OK').length);
-    }
-
-    $('filesInput').addEventListener('change', (e) => {
-      state.files = Array.from(e.target.files || []);
-      updateFilesList();
     });
+  }
 
-    $('baseInput').addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      try {
-        const wb = await readWorkbook(file);
-        const sheetName = wb.SheetNames.includes('BASE_PRODUTOS') ? 'BASE_PRODUTOS' : wb.SheetNames[0];
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
-        if (!rows.length) throw new Error('Base vazia.');
+  function escapeHtml(s){
+    return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+  }
 
-        const normalized = rows.map(r => {
-          const keys = Object.keys(r).reduce((acc, k) => { acc[normalizeText(k)] = r[k]; return acc; }, {});
-          return {
-            produto: keys['produto'] || keys['produto base'] || keys['item'] || keys['descricao'] || '',
-            categoria: keys['categoria'] || '',
-            tipo: keys['tipo'] || keys['modo conversao'] || '',
-            peso_caixa: keys['peso caixa'] || keys['peso_caixa'] || '',
-            bandejas_por_caixa: keys['bandejas por caixa'] || keys['bandejas_por_caixa'] || '',
-            unidades_caixa: keys['unidades caixa'] || keys['unidades_caixa'] || keys['itens por caixa'] || '',
-            sinonimos: keys['sinonimos'] || keys['sinonimo'] || ''
-          };
-        }).filter(r => String(r.produto).trim());
+  function renderPreview(frutas, legumes){
+    const renderMini = (rows, title) => {
+      if (!rows.length) return `<div class="small">${title}: sem itens convertidos.</div>`;
+      const sample = rows.slice(0, 8);
+      const heads = ERP_COLUMNS.map(c => `<th>${c}</th>`).join("");
+      const body = sample.map(r => `<tr>${ERP_COLUMNS.map(c => `<td>${r[c] ?? ""}</td>`).join("")}</tr>`).join("");
+      return `<div style="margin-bottom:18px"><div style="font-weight:800; margin-bottom:8px">${title}</div><div class="table-wrap"><table><thead><tr>${heads}</tr></thead><tbody>${body}</tbody></table></div></div>`;
+    };
+    els.preview.innerHTML = renderMini(frutas, "FRUTAS") + renderMini(legumes, "LEGUMES");
+  }
 
-        buildBaseMap(normalized);
-        log(`Base carregada: ${file.name} (${normalized.length} itens).`);
-      } catch (err) {
-        log(`Erro ao carregar base: ${err.message}`);
-        alert(`Erro ao carregar base: ${err.message}`);
-      }
-    });
+  function renderErrors(errors){
+    if (!errors.length){
+      els.errorTableBody.innerHTML = `<tr><td colspan="7" class="muted">Nenhum item com erro.</td></tr>`;
+      return;
+    }
+    els.errorTableBody.innerHTML = errors.map(e => {
+      const cls = e.status === "SEM BASE" ? "bad" : "warn";
+      return `<tr><td><span class="pill ${cls}">${e.status}</span></td><td>${escapeHtml(e.produto_original)}</td><td>${escapeHtml(e.produto_normalizado)}</td><td>${escapeHtml(e.loja || "-")}</td><td>${escapeHtml(String(e.qtd))}</td><td>${escapeHtml(e.tipo_detectado || "-")}</td><td>${escapeHtml(e.motivo)}</td></tr>`;
+    }).join("");
+  }
 
-    $('btnBaixarBase').addEventListener('click', () => {
-      const ws = XLSX.utils.aoa_to_sheet(DEFAULT_BASE_ROWS);
-      ws['!cols'] = [
-        { wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 42 }
-      ];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'BASE_PRODUTOS');
-      const blob = new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      downloadBlob(blob, 'BASE_MESTRE_THOTH_MODELO.xlsx');
-    });
+  function setStats({total, converted, semBase, baseIncompleta}){
+    els.statTotal.textContent = total; els.statConverted.textContent = converted; els.statSemBase.textContent = semBase; els.statBaseIncompleta.textContent = baseIncompleta;
+  }
 
-    $('btnProcessar').addEventListener('click', async () => {
-      state.logs = [];
-      $('logBox').textContent = '';
-      state.rows = [];
-      state.workbookOut = null;
-      $('btnBaixar').disabled = true;
+  function updateSummary(result){
+    els.summary.innerHTML = `<div><strong>Arquivos processados:</strong> ${result.filesProcessed}</div><div><strong>Itens validos convertidos:</strong> ${result.converted}</div><div><strong>FRUTAS finais:</strong> ${result.frutas.length} produto(s)</div><div><strong>LEGUMES finais:</strong> ${result.legumes.length} produto(s)</div><div><strong>Itens com erro:</strong> ${result.errors.length}</div><div style="margin-top:10px" class="small">O Excel final contem apenas o layout ERP fixo. Valores sao sempre inteiros em caixas, com arredondamento para cima.</div>`;
+  }
 
-      if (!state.files.length) {
-        alert('Selecione ao menos um pedido.');
-        return;
-      }
+  async function processAll(){
+    if (!state.baseMap.size){ alert("Carregue uma base mestre ou clique em 'Usar base modelo'."); return; }
+    if (!state.orderFiles.length){ alert("Selecione pelo menos um pedido."); return; }
+    els.processBtn.disabled = true; els.downloadBtn.disabled = true; state.outputWorkbook = null; state.result = null;
 
-      const forcedMode = $('modoCliente').value;
-      log('Iniciando processamento...');
-      for (const file of state.files) {
-        try {
-          const wb = await readWorkbook(file);
-          log(`Lendo arquivo: ${file.name}`);
-          for (const sheetName of wb.SheetNames) {
-            const rows = toRowsFromSheet(wb.Sheets[sheetName], file.name, sheetName, forcedMode);
-            state.rows.push(...rows);
+    let total = 0, converted = 0, semBase = 0, baseIncompleta = 0;
+    const allRows = [], errors = [];
+    let filesProcessed = 0;
+
+    try{
+      for (const file of state.orderFiles){
+        const rows = await fileToRows(file);
+        if (!rows.length) continue;
+        filesProcessed += 1;
+        const cols = detectColumns(rows);
+
+        for (const row of rows){
+          const produtoOriginal = String(row[cols.prod] ?? "").trim();
+          const qtd = parseMaybeNumber(row[cols.qtd]);
+          if (!produtoOriginal || !isFinite(qtd)) continue;
+
+          const produtoNormalizado = normalizeProduct(produtoOriginal);
+          const loja = padronizarLoja(row[cols.loja], file.name);
+          const tipoDetectado = normalizeText(row[cols.tipo] || detectTypeFromText(produtoOriginal));
+          if (!produtoNormalizado || !loja) continue;
+
+          total += 1;
+          const baseItem = state.baseMap.get(produtoNormalizado);
+
+          if (!baseItem){
+            semBase += 1;
+            errors.push({status:"SEM BASE",produto_original:produtoOriginal,produto_normalizado:produtoNormalizado,loja,qtd,tipo_detectado:tipoDetectado,motivo:"Produto nao encontrado na base mestre."});
+            continue;
           }
-        } catch (err) {
-          log(`Erro em ${file.name}: ${err.message}`);
+          if (requiredFactorMissing(baseItem)){
+            baseIncompleta += 1;
+            errors.push({status:"BASE INCOMPLETA",produto_original:produtoOriginal,produto_normalizado:produtoNormalizado,loja,qtd,tipo_detectado:baseItem.tipo || tipoDetectado,motivo:"Fator obrigatorio ausente para conversao."});
+            continue;
+          }
+
+          const caixas = convertToBoxes(qtd, baseItem);
+          converted += 1;
+          allRows.push({status:"OK",produto_original:produtoOriginal,produto_normalizado:produtoNormalizado,produto_base:baseItem.produto,categoria:baseItem.categoria,tipo:baseItem.tipo,qtd,caixas,loja});
         }
       }
 
-      renderPreview(state.rows);
-      updateStats(state.rows);
+      const frutas = buildERPTable(allRows, "FRUTAS");
+      const legumes = buildERPTable(allRows, "LEGUMES");
 
-      const output = aggregateForOutput(state.rows);
-      state.workbookOut = buildWorkbook(output);
-      $('btnBaixar').disabled = false;
+      const wb = XLSX.utils.book_new();
+      const emptyRow = Object.fromEntries(ERP_COLUMNS.map(c => [c, ""]));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(frutas.length ? frutas : [emptyRow], {header: ERP_COLUMNS}), "FRUTAS");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(legumes.length ? legumes : [emptyRow], {header: ERP_COLUMNS}), "LEGUMES");
 
-      const ok = state.rows.filter(r => r.status === 'OK').length;
-      const err = state.rows.filter(r => r.status !== 'OK').length;
-      const semBase = state.rows.filter(r => r.status === 'SEM BASE').length;
-      const baseIncompleta = state.rows.filter(r => r.status === 'BASE INCOMPLETA').length;
-      const lojaNao = state.rows.filter(r => r.status === 'LOJA NAO IDENTIFICADA').length;
-      log(`Concluído. OK: ${ok} | Erros: ${err} | SEM BASE: ${semBase} | BASE INCOMPLETA: ${baseIncompleta} | LOJA NAO IDENTIFICADA: ${lojaNao}`);
-    });
+      state.outputWorkbook = wb;
+      state.result = {total, converted, semBase, baseIncompleta, errors, frutas, legumes, filesProcessed};
+      setStats({total, converted, semBase, baseIncompleta});
+      updateSummary(state.result);
+      renderPreview(frutas, legumes);
+      renderErrors(errors);
+      els.downloadBtn.disabled = false;
+    } catch(err){
+      console.error(err);
+      alert("Erro no processamento: " + err.message);
+    } finally {
+      els.processBtn.disabled = false;
+    }
+  }
 
-    $('btnBaixar').addEventListener('click', () => {
-      if (!state.workbookOut) return;
-      const name = ($('nomeSaida').value || 'THOTH_PRO_MULTI_CLIENTE_FINAL').trim();
-      const blob = new Blob([XLSX.write(state.workbookOut, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      downloadBlob(blob, `${name}.xlsx`);
-    });
+  function downloadWorkbook(){
+    if (!state.outputWorkbook) return;
+    XLSX.writeFile(state.outputWorkbook, state.outputFilename);
+  }
 
-    loadDefaultBase();
-    updateFilesList();
-  </script>
+  els.baseFile.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const rows = await fileToRows(file);
+    state.baseRows = rows;
+    state.baseMap = toBaseMap(rows);
+    els.baseInfo.textContent = `${file.name} carregado com ${rows.length} linha(s). Base ativa com ${state.baseMap.size} chave(s) considerando produto e sinonimos.`;
+  });
+
+  els.orderFiles.addEventListener("change", (e) => {
+    state.orderFiles = [...e.target.files];
+    els.ordersInfo.textContent = state.orderFiles.length ? `${state.orderFiles.length} arquivo(s) selecionado(s): ${state.orderFiles.map(f => f.name).join(", ")}` : "Nenhum pedido selecionado.";
+  });
+
+  els.loadDemoBaseBtn.addEventListener("click", () => {
+    state.baseRows = DEMO_BASE;
+    state.baseMap = toBaseMap(DEMO_BASE);
+    els.baseInfo.textContent = `Base modelo ativada com ${DEMO_BASE.length} itens de exemplo.`;
+  });
+
+  els.processBtn.addEventListener("click", processAll);
+  els.downloadBtn.addEventListener("click", downloadWorkbook);
+  setStats({total:0, converted:0, semBase:0, baseIncompleta:0});
+})();
+</script>
 </body>
 </html>
