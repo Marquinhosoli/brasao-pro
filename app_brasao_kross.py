@@ -39,10 +39,17 @@ MODEL_CANDIDATES = {
     ],
 }
 
-BASE_FILE_CANDIDATES = [
-    "base_thoth_app_normalizada_brasao_kross_completa.xlsx",
-    "base_thoth_app_normalizada_brasao_kross.xlsx",
-]
+st.sidebar.title("📦 THOTH PRO Multi-Cliente")
+
+# --- PASSO 1: CARREGAR A BASE ---
+st.sidebar.markdown("### 🟡 1. CARREGAR BASE PRODUTOS")
+base_file = st.sidebar.file_uploader("Selecione sua base atualizada (table 2.xlsx)", type=["xlsx", "xls", "csv"], key="base")
+
+st.sidebar.markdown("---") # Cria uma linha divisória para organizar
+
+# --- PASSO 2: CARREGAR OS PEDIDOS ---
+st.sidebar.markdown("### 🔵 2. SELECIONAR PEDIDOS")
+uploaded_files = st.sidebar.file_uploader("Selecione os arquivos de Pedido (Excel)", type=["xlsx", "xls", "csv"], accept_multiple_files=True, key="pedidos")
 
 STORE_RULES = [
     {
