@@ -39,6 +39,21 @@ MODEL_CANDIDATES = {
     ],
 }
 
+
+# --- TRAVA DE SEGURANÇA ---
+if base_file is None:
+    st.info("👈 Por favor, carregue a sua BASE DE PRODUTOS (table 2.xlsx) no menu lateral para liberar o sistema.")
+    st.stop() # Isso trava o aplicativo aqui até a base ser inserida
+
+if not uploaded_files:
+    st.info("👈 Agora selecione os arquivos de pedido dos clientes (Brasão, Kross, etc).")
+    st.stop()
+
+# --- LEITURA DA BASE ---
+# A partir daqui, o sistema sabe que os arquivos foram carregados
+df_base = pd.read_excel(base_file)
+st.sidebar.success(f"✅ Base carregada: {len(df_base)} produtos!")
+
 st.sidebar.title("📦 THOTH PRO Multi-Cliente")
 
 # --- PASSO 1: CARREGAR A BASE ---
