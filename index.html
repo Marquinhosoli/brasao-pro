@@ -1,277 +1,613 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>THOTH PRO Multi-Cliente</title>
+  <title>THOTH PRO Multi-Cliente (Produção Final)</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
-    :root {
-      --bg-color: #0b1021; --card-bg: #151c33; --primary: #4f8cff;
-      --primary-hover: #3a70db; --success: #23c483; --danger: #ff4d4d;
-      --warning: #ffb020; --text-main: #e8eefc; --text-muted: #8e9bb0;
-      --border: #2a3654; --radius: 12px;
+    :root{
+      --bg:#0b1020; --panel:#121a31; --panel2:#17213d; --line:#2a3b63;
+      --text:#e9eefb; --muted:#a8b5d3; --primary:#4f8cff; --primary2:#78a8ff;
+      --ok:#26c281; --warn:#ffb020; --danger:#ff6b6b; --radius:18px;
+      --shadow:0 18px 44px rgba(0,0,0,.28);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-color); color: var(--text-main); padding: 20px; }
-    .container { max-width: 1200px; margin: 0 auto; }
-    .header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-    .header h1 { font-size: 1.5rem; color: var(--primary); }
-    .grid-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .stat-card { background: var(--card-bg); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); text-align: center; }
-    .stat-card h3 { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;}
-    .stat-card .value { font-size: 2rem; font-weight: bold; }
-    .stat-card.success .value { color: var(--success); }
-    .stat-card.danger .value { color: var(--danger); }
-    .stat-card.primary .value { color: var(--primary); }
-    .controls { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; background: var(--card-bg); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); align-items: center; }
-    .btn { padding: 12px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 1rem; }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-success { background: var(--success); color: #000; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    input[type="file"] { display: none; }
-    .file-label { border: 2px dashed var(--primary); color: var(--primary); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-    
-    /* AQUI ESTÁ A COR AMARELA DO BOTÃO 1 */
-    .file-label.base { border-color: var(--warning); color: var(--warning); }
-    
-    .log-container { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; height: 300px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.9rem; color: var(--text-muted); }
-    .log-entry { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-    .log-entry.error { color: var(--danger); }
-    .log-entry.warn { color: var(--warning); }
-    .log-entry.info { color: var(--primary); }
-    .log-entry.success { color: var(--success); }
-    @media (max-width: 768px) { .controls { flex-direction: column; align-items: stretch; } .file-label { text-align: center; } }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(180deg,#0a1020 0%,#111938 100%);color:var(--text);min-height:100vh}
+    .wrap{max-width:1280px;margin:0 auto;padding:24px}
+    .hero{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;margin-bottom:18px}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px}
+    .card{background:rgba(18,26,49,.92);border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+    .span-12{grid-column:span 12}.span-8{grid-column:span 8}.span-4{grid-column:span 4}.span-6{grid-column:span 6}
+    h1,h2,h3,p{margin:0}.muted{color:var(--muted)} h1{font-size:32px;line-height:1.05;margin-bottom:10px} h2{font-size:18px;margin-bottom:14px}
+    .toolbar,.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+    .pillrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+    .pill{padding:8px 10px;border-radius:999px;background:#1b2748;color:var(--muted);border:1px solid rgba(255,255,255,.08);font-size:12px;font-weight:700}
+    .stat{background:linear-gradient(180deg,var(--panel2),#101831);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:16px}
+    .stat .k{font-size:28px;font-weight:800;margin-top:6px}
+    button,.fake-input,select,input[type="text"]{border-radius:14px;font-size:14px}
+    button,.fake-input{padding:12px 16px;font-weight:800;cursor:pointer;border:none;transition:.18s ease}
+    button:hover,.fake-input:hover{transform:translateY(-1px)}
+    button.primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff}
+    button.secondary,.fake-input,select,input[type="text"]{background:#22315a;color:var(--text);border:1px solid rgba(255,255,255,.08)}
+    button:disabled{opacity:.55;cursor:not-allowed;transform:none}
+    input[type="file"]{display:none}
+    .log{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#0f1730;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;min-height:220px;max-height:440px;overflow:auto;color:#d6e2ff;font-size:12px}
+    .table-wrap{max-height:460px;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:14px}
+    table{width:100%;border-collapse:collapse;background:#0f1730}
+    th,td{padding:11px 10px;border-bottom:1px solid rgba(255,255,255,.06);text-align:left;font-size:13px}
+    th{position:sticky;top:0;background:#182445;color:#dbe7ff}
+    tbody tr:hover{background:rgba(255,255,255,.03)}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .danger{color:var(--danger)}
+    .small{font-size:12px;line-height:1.55}
+    @media(max-width:960px){.hero{grid-template-columns:1fr}.span-8,.span-4,.span-6,.span-12{grid-column:span 12}}
   </style>
 </head>
 <body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="card">
+        <h1>THOTH PRO <span class="ok">Multi-Cliente</span></h1>
+        <p class="muted">Processador hortifruti com base mestre, normalização inteligente e geração final no padrão do ERP Thoth.</p>
+        <div class="pillrow">
+          <span class="pill">FRUTAS + LEGUMES</span>
+          <span class="pill">Conversão KG / BDJ / UN</span>
+          <span class="pill">Arredondamento para cima</span>
+          <span class="pill">Zero conversão sem base</span>
+          <span class="pill">Multi-arquivo</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Painel rápido</h2>
+        <div class="grid">
+          <div class="stat span-6"><div class="muted">Arquivos</div><div id="statArquivos" class="k">0</div></div>
+          <div class="stat span-6"><div class="muted">Linhas lidas</div><div id="statLinhas" class="k">0</div></div>
+          <div class="stat span-6"><div class="muted">Convertidos</div><div id="statConvertidos" class="k">0</div></div>
+          <div class="stat span-6"><div class="muted">Com erro</div><div id="statErros" class="k danger">0</div></div>
+        </div>
+      </div>
+    </div>
 
-<div class="container">
-  <div class="header">
-    <h1>📦 THOTH PRO Multi-Cliente</h1>
-    <span style="color: var(--text-muted); font-size: 0.85rem;">Motor Dinâmico de Conversão</span>
+    <div class="grid">
+      <div class="card span-8">
+        <h2>Processamento</h2>
+        <div class="toolbar" style="margin-bottom:12px">
+          <label class="fake-input" for="filesInput">📂 Selecionar pedido(s)</label>
+          <input id="filesInput" type="file" accept=".xlsx,.xls,.csv" multiple />
+
+          <label class="fake-input" for="baseInput">🧠 Carregar base mestre</label>
+          <input id="baseInput" type="file" accept=".xlsx,.xls,.csv" />
+
+          <select id="modoCliente">
+            <option value="AUTO">Cliente: AUTO</option>
+            <option value="BRASAO">Cliente: BRASÃO</option>
+            <option value="KROSS">Cliente: KROSS</option>
+            <option value="MISTO">Cliente: MISTO</option>
+          </select>
+
+          <input id="nomeSaida" type="text" value="THOTH_PRO_MULTI_CLIENTE_FINAL" placeholder="Nome do arquivo final" />
+          <button id="btnProcessar" class="primary">PROCESSAR</button>
+          <button id="btnBaixar" class="secondary" disabled>BAIXAR EXCEL</button>
+          <button id="btnBaixarBase" class="secondary">BAIXAR BASE MODELO</button>
+        </div>
+        <div class="small muted">
+          Saída fixa: <strong>PRODUTO | BRASAO FERNANDO | BRASAO JARDIM | BRASAO XAXIM | BRASAO AVENIDA | KROSS ATACADO | KROSS XAXIM</strong>.<br>
+          Itens com <strong>SEM BASE</strong>, <strong>BASE INCOMPLETA</strong> ou loja não identificada aparecem no log e ficam fora das abas finais.
+        </div>
+      </div>
+
+      <div class="card span-4">
+        <h2>Status</h2>
+        <div id="arquivosLista" class="log">Nenhum arquivo selecionado.</div>
+      </div>
+
+      <div class="card span-8">
+        <h2>Prévia operacional</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Arquivo</th><th>Aba</th><th>Loja</th><th>Produto</th><th>Qtd original</th><th>Unid.</th><th>Caixas</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody"><tr><td colspan="8" class="muted">Ainda sem processamento.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card span-4">
+        <h2>Log técnico</h2>
+        <div id="logBox" class="log">Sistema pronto.</div>
+      </div>
+    </div>
   </div>
 
-  <div class="grid-dashboard">
-    <div class="stat-card primary"><h3>Total Lidos</h3><div class="value" id="valTotal">0</div></div>
-    <div class="stat-card success"><h3>Convertidos</h3><div class="value" id="valConvertidos">0</div></div>
-    <div class="stat-card danger"><h3>Sem Base</h3><div class="value" id="valSemBase">0</div></div>
-  </div>
+  <script>
+    const OUTPUT_COLUMNS = [
+      'PRODUTO',
+      'BRASAO FERNANDO',
+      'BRASAO JARDIM',
+      'BRASAO XAXIM',
+      'BRASAO AVENIDA',
+      'KROSS ATACADO',
+      'KROSS XAXIM'
+    ];
 
-  <div class="controls">
-    <label class="file-label base" for="baseInput">📋 1. CARREGAR BASE PRODUTOS</label>
-    <input type="file" id="baseInput" accept=".xlsx, .csv" />
-    
-    <label class="file-label" for="fileInput">📁 2. SELECIONAR PEDIDOS</label>
-    <input type="file" id="fileInput" multiple accept=".xlsx, .xls, .csv" disabled />
-    
-    <button class="btn btn-primary" id="btnProcessar" disabled>⚙️ PROCESSAR PEDIDOS</button>
-    <button class="btn btn-success" id="btnBaixar" style="display: none;">⬇️ BAIXAR EXCEL FINAL</button>
-  </div>
+    const DEFAULT_BASE_ROWS = [
+      ['produto','categoria','tipo','peso_caixa','bandejas_por_caixa','unidades_caixa','sinonimos'],
+      ['Abacaxi','FRUTAS','UN','','','10','abacaxi perola|abacaxi unidade'],
+      ['Ameixa 500g','FRUTAS','BDJ','','20','','ameixa bdj|ameixa bandeja'],
+      ['Batata','LEGUMES','KG','25','','','batata kg'],
+      ['Blueberry 125g','FRUTAS','BDJ','','12','','mirtilo blueberry|mirtilo|blueberry'],
+      ['Carambola 400g','FRUTAS','BDJ','','4','','carambola|carambola bdj|carambola 400 gr'],
+      ['Cebola Albina','LEGUMES','KG','20','','','cebola argentina|cebola'],
+      ['Figo Roxo','FRUTAS','BDJ','','1','','figo|figo roxo bdj'],
+      ['Laranja','FRUTAS','KG','20','','','laranja pera|laranja kg'],
+      ['Limão','FRUTAS','KG','20','','','limao'],
+      ['Mamão Papaya','FRUTAS','UN','','','18','mamao papaya|mamão papaya'],
+      ['Maracujá','FRUTAS','KG','10','','','maracuja'],
+      ['Maxixe 300g','LEGUMES','BDJ','','2','','maxixe|maxixe bdj'],
+      ['Melão','FRUTAS','KG','12','','','melao'],
+      ['Milho','LEGUMES','UN','','','30','milho verde'],
+      ['Mirtilo 125g','FRUTAS','BDJ','','12','','mirtilo|blueberry 125g'],
+      ['Morango','FRUTAS','BDJ','','4','','morango bdj'],
+      ['Physalis 100g','FRUTAS','UN','','','8','physalis importado|physalis'],
+      ['Repolho Roxo','LEGUMES','KG','20','','','repolho roxo kg'],
+      ['Tomate Grap','LEGUMES','BDJ','','24','','tomate grape demarchi|tomate grape|tomate grape bdj|tomate grap'],
+      ['Uva Thompson 500g','FRUTAS','BDJ','','10','','uva thompson s/semente|uva thompson|uva 500g']
+    ];
 
-  <div class="log-container" id="logArea">
-    <div class="log-entry warn">Aguardando carregamento da Base Mestre (Sua planilha de produtos)...</div>
-  </div>
-</div>
+    const STORE_PATTERNS = [
+      { id:'BRASAO FERNANDO', patterns:['brasao fernando','fernando','centro brasao','loja 1','ce '] },
+      { id:'BRASAO JARDIM', patterns:['brasao jardim','jardim','já ','ja ','jardim america','loja 2'] },
+      { id:'BRASAO XAXIM', patterns:['brasao xaxim','xaxim brasao','xx ','loja 3'] },
+      { id:'BRASAO AVENIDA', patterns:['brasao avenida','avenida','av ','loja 4'] },
+      { id:'KROSS ATACADO', patterns:['kross atacado','kross chapeco','kross chapeó','chapeco','atacado','loja 1 atacado'] },
+      { id:'KROSS XAXIM', patterns:['kross xaxim','xaxim kross','loja 2 xaxim'] }
+    ];
 
-<script>
-  let BASE_MESTRE_ARRAY = [];
-  let DICIONARIO_PRODUTOS = {};
-  let arquivosSelecionados = [];
-  let workbookFinal = null;
+    const STRIP_TOKENS = [
+      'demarchi','shelf','kg','quilo','quilos','bdj','bandeja','bandejas','und','un','unid','unidade','unidades',
+      'brasao','kross','fruta','frutas','legume','legumes','hortifruti'
+    ];
 
-  function log(msg, type = '') {
-    const div = document.createElement('div');
-    div.className = `log-entry ${type}`;
-    div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-    document.getElementById('logArea').appendChild(div);
-    document.getElementById('logArea').scrollTop = document.getElementById('logArea').scrollHeight;
-  }
+    const MANUAL_NORMALIZATION = new Map([
+      ['tomate grape demarchi','Tomate Grap'],
+      ['tomate grape','Tomate Grap'],
+      ['uva thompson s semente','Uva Thompson 500g'],
+      ['uva thompson ssemente','Uva Thompson 500g'],
+      ['uva thompson sem semente','Uva Thompson 500g'],
+      ['mirtilo blueberry','Blueberry 125g'],
+      ['blueberry','Blueberry 125g'],
+      ['cebola argentina','Cebola Albina'],
+      ['physalis importado','Physalis 100g'],
+      ['carambola','Carambola 400g'],
+      ['figo roxo','Figo Roxo'],
+      ['figo','Figo Roxo'],
+      ['maxixe','Maxixe 300g']
+    ]);
 
-  function normalizeText(text) {
-    if (!text) return "";
-    return text.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim().toUpperCase();
-  }
+    const state = {
+      files: [],
+      workbookOut: null,
+      rows: [],
+      logs: [],
+      baseMap: new Map(),
+      baseRows: []
+    };
 
-  // ==========================================
-  // PASSO 1: LEITURA DINÂMICA DA BASE MESTRE
-  // ==========================================
-  document.getElementById('baseInput').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
-    
-    log(`Lendo Base Mestre: ${file.name}...`, 'info');
-    try {
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(data, { type: 'array' });
-      const sheetName = wb.SheetNames.includes("BASE_PRODUTOS") ? "BASE_PRODUTOS" : wb.SheetNames[0];
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
-      
-      BASE_MESTRE_ARRAY = [];
-      DICIONARIO_PRODUTOS = {};
+    const $ = (id) => document.getElementById(id);
+    const log = (msg) => {
+      state.logs.push(msg);
+      $('logBox').textContent = state.logs.join('\n');
+      $('logBox').scrollTop = $('logBox').scrollHeight;
+    };
 
+    function normalizeText(value) {
+      return String(value ?? '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .toLowerCase()
+        .replace(/[\u00BA\u00AA]/g,'')
+        .replace(/[^a-z0-9]+/g,' ')
+        .replace(/\s+/g,' ')
+        .trim();
+    }
+
+    function niceInt(n) {
+      const num = Number(n || 0);
+      return Number.isFinite(num) ? Math.trunc(num).toString() : '0';
+    }
+
+    function parseNumber(v) {
+      if (v == null || v === '') return null;
+      if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+      let s = String(v).trim();
+      if (!s) return null;
+      s = s.replace(/\./g,'').replace(',', '.').replace(/[^0-9.-]/g,'');
+      if (!s || s === '-' || s === '.') return null;
+      const n = Number(s);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function ceilDiv(qtd, base) {
+      const q = parseNumber(qtd);
+      const b = parseNumber(base);
+      if (!(q > 0) || !(b > 0)) return null;
+      return Math.ceil(q / b);
+    }
+
+    function updateFilesList() {
+      $('statArquivos').textContent = String(state.files.length);
+      if (!state.files.length) {
+        $('arquivosLista').textContent = 'Nenhum arquivo selecionado.';
+        return;
+      }
+      $('arquivosLista').textContent = state.files.map(f => `${f.name}`).join('\n');
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1200);
+    }
+
+    function loadDefaultBase() {
+      const rows = DEFAULT_BASE_ROWS.map(r => ({
+        produto: r[0], categoria: r[1], tipo: r[2], peso_caixa: r[3], bandejas_por_caixa: r[4], unidades_caixa: r[5], sinonimos: r[6]
+      }));
+      buildBaseMap(rows);
+      log('Base padrão carregada.');
+    }
+
+    function buildBaseMap(rows) {
+      state.baseRows = rows;
+      state.baseMap = new Map();
       rows.forEach(row => {
-        const prodBase = row['produto_base'] || row['produto'] || row['PRODUTO'];
-        if(!prodBase) return;
-
-        const item = {
-          produto: prodBase.toUpperCase(),
-          categoria: (row['categoria'] || row['CATEGORIA'] || 'INDEFINIDO').toUpperCase(),
-          tipo: (row['modo_conversao'] || row['tipo'] || 'CAIXA').toUpperCase(),
-          peso_caixa: parseFloat(row['peso_caixa']) || 0,
-          bandejas_por_caixa: parseFloat(row['bandejas_por_caixa']) || 0,
-          unidades_caixa: parseFloat(row['itens_por_caixa'] || row['unidades_caixa']) || 0,
-          sinonimos: []
+        const produto = String(row.produto || '').trim();
+        if (!produto) return;
+        const entry = {
+          produto,
+          categoria: String(row.categoria || '').trim().toUpperCase(),
+          tipo: String(row.tipo || '').trim().toUpperCase(),
+          peso_caixa: parseNumber(row.peso_caixa),
+          bandejas_por_caixa: parseNumber(row.bandejas_por_caixa),
+          unidades_caixa: parseNumber(row.unidades_caixa),
+          sinonimos: String(row.sinonimos || '').split(/[|;]/).map(s => s.trim()).filter(Boolean)
         };
+        const keys = new Set([normalizeProductKey(produto), normalizeText(produto)]);
+        entry.sinonimos.forEach(s => keys.add(normalizeProductKey(s)));
+        keys.forEach(k => { if (k) state.baseMap.set(k, entry); });
+      });
+    }
 
-        const sinStr = row['sinonimos'] || row['SINONIMOS'];
-        if (sinStr) {
-          item.sinonimos = sinStr.split(';').map(s => s.trim().toUpperCase()).filter(s => s);
+    function normalizeProductKey(text) {
+      let t = normalizeText(text);
+      t = t.replace(/\b\d+(?:[.,]\d+)?\s*g\b/g,' ');
+      t = t.replace(/\b\d+(?:[.,]\d+)?\s*kg\b/g,' ');
+      t = t.replace(/\bshelf\s*\d+\b/g,' ');
+      STRIP_TOKENS.forEach(token => {
+        t = t.replace(new RegExp(`\\b${token}\\b`, 'g'), ' ');
+      });
+      return t.replace(/\s+/g,' ').trim();
+    }
+
+    function normalizeProductName(raw) {
+      const rawNorm = normalizeText(raw);
+      if (MANUAL_NORMALIZATION.has(rawNorm)) return MANUAL_NORMALIZATION.get(rawNorm);
+      const rawKey = normalizeProductKey(raw);
+      if (MANUAL_NORMALIZATION.has(rawKey)) return MANUAL_NORMALIZATION.get(rawKey);
+      const exact = state.baseMap.get(rawKey) || state.baseMap.get(rawNorm);
+      if (exact) return exact.produto;
+
+      let best = null;
+      let bestScore = 0;
+      const rawTokens = new Set(rawKey.split(' ').filter(Boolean));
+      for (const [key, entry] of state.baseMap.entries()) {
+        const tokens = key.split(' ').filter(Boolean);
+        if (!tokens.length || !rawTokens.size) continue;
+        let score = 0;
+        tokens.forEach(tok => { if (rawTokens.has(tok)) score += 1; });
+        if (score > bestScore && score >= Math.max(1, Math.ceil(tokens.length * 0.5))) {
+          bestScore = score;
+          best = entry.produto;
+        }
+      }
+      return best || raw.trim();
+    }
+
+    function detectStoreFromText(text, forcedMode='AUTO') {
+      const t = normalizeText(text);
+      const viable = STORE_PATTERNS.filter(rule => {
+        if (forcedMode === 'BRASAO') return rule.id.startsWith('BRASAO');
+        if (forcedMode === 'KROSS') return rule.id.startsWith('KROSS');
+        return true;
+      });
+      for (const rule of viable) {
+        if (rule.patterns.some(p => t.includes(normalizeText(p)))) return rule.id;
+      }
+      return '';
+    }
+
+    function inferUnit(produtoTexto, rowText) {
+      const t = normalizeText(`${produtoTexto} ${rowText}`);
+      if (/\bbdj\b|\bbandeja\b/.test(t)) return 'BDJ';
+      if (/\bund\b|\bunidade\b|\bunid\b/.test(t)) return 'UN';
+      if (/\bkg\b|\bkilo\b/.test(t)) return 'KG';
+      return '';
+    }
+
+    function getBaseEntry(productName) {
+      return state.baseMap.get(normalizeProductKey(productName)) || state.baseMap.get(normalizeText(productName)) || null;
+    }
+
+    function convertItem(productRaw, qtdOriginal, unitRaw) {
+      const produto = normalizeProductName(productRaw);
+      const base = getBaseEntry(produto);
+      if (!base) return { produto, caixas: 0, status: 'SEM BASE', categoria: '', tipoBase: '' };
+      const tipo = base.tipo;
+      let caixas = null;
+      if (tipo === 'KG') caixas = ceilDiv(qtdOriginal, base.peso_caixa);
+      if (tipo === 'BDJ') caixas = ceilDiv(qtdOriginal, base.bandejas_por_caixa);
+      if (tipo === 'UN') caixas = ceilDiv(qtdOriginal, base.unidades_caixa);
+      if (!caixas && caixas !== 0) return { produto: base.produto, caixas: 0, status: 'BASE INCOMPLETA', categoria: base.categoria, tipoBase: tipo };
+      return { produto: base.produto, caixas, status: 'OK', categoria: base.categoria, tipoBase: tipo };
+    }
+
+    function toRowsFromSheet(sheet, fileName, sheetName, forcedMode) {
+      const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '' });
+      if (!matrix.length) return [];
+
+      const headerIdx = findHeaderRow(matrix);
+      const header = (matrix[headerIdx] || []).map(v => normalizeText(v));
+      const idx = {
+        produto: findIndex(header, ['produto','descricao','descrição','item','mercadoria']),
+        qtd: findIndex(header, ['quantidade','qtd','qtde','pedido','volume']),
+        unidade: findIndex(header, ['unidade','tipo','emb','embalagem','und']),
+        loja: findIndex(header, ['loja','filial','cliente','destino','unidade'])
+      };
+
+      const fallbackStore = detectStoreFromText(`${fileName} ${sheetName}`, forcedMode);
+      const out = [];
+      for (let r = headerIdx + 1; r < matrix.length; r++) {
+        const row = matrix[r] || [];
+        const rowText = row.map(v => String(v ?? '')).join(' ');
+        if (!row.some(v => String(v ?? '').trim())) continue;
+
+        let produto = idx.produto >= 0 ? String(row[idx.produto] ?? '').trim() : '';
+        let quantidade = idx.qtd >= 0 ? parseNumber(row[idx.qtd]) : null;
+        let unidade = idx.unidade >= 0 ? String(row[idx.unidade] ?? '').trim() : '';
+        let loja = idx.loja >= 0 ? String(row[idx.loja] ?? '').trim() : '';
+
+        if ((!produto || quantidade == null) && row.length >= 2) {
+          const candidates = row.filter(v => String(v ?? '').trim());
+          const possibleProduct = candidates.find(v => /[a-zA-ZÀ-ÿ]/.test(String(v)));
+          const possibleNumber = candidates.map(parseNumber).find(v => v > 0);
+          if (!produto && possibleProduct) produto = String(possibleProduct).trim();
+          if (quantidade == null && possibleNumber != null) quantidade = possibleNumber;
         }
 
-        BASE_MESTRE_ARRAY.push(item);
-        DICIONARIO_PRODUTOS[normalizeText(item.produto)] = item;
-        item.sinonimos.forEach(sin => DICIONARIO_PRODUTOS[normalizeText(sin)] = item);
+        if (!produto || !(quantidade > 0)) continue;
+
+        const lojaFinal = detectStoreFromText(loja, forcedMode) || fallbackStore;
+        const unidadeFinal = unidade || inferUnit(produto, rowText);
+        const conv = convertItem(produto, quantidade, unidadeFinal);
+
+        out.push({
+          arquivo: fileName,
+          aba: sheetName,
+          loja: lojaFinal,
+          produto_original: produto,
+          produto: conv.produto,
+          categoria: conv.categoria,
+          quantidade_original: quantidade,
+          unidade_original: unidadeFinal,
+          caixas: conv.caixas,
+          status: lojaFinal ? conv.status : 'LOJA NAO IDENTIFICADA'
+        });
+      }
+      return out;
+    }
+
+    function findHeaderRow(matrix) {
+      let bestIdx = 0;
+      let bestScore = -1;
+      matrix.slice(0, 20).forEach((row, i) => {
+        const text = row.map(v => normalizeText(v));
+        let score = 0;
+        if (text.some(t => ['produto','descricao','descrição','item','mercadoria'].includes(t))) score += 3;
+        if (text.some(t => ['quantidade','qtd','qtde','pedido'].includes(t))) score += 3;
+        if (text.some(t => ['loja','filial','cliente','destino','unidade'].includes(t))) score += 2;
+        if (score > bestScore) { bestScore = score; bestIdx = i; }
+      });
+      return bestIdx;
+    }
+
+    function findIndex(header, names) {
+      return header.findIndex(h => names.includes(h));
+    }
+
+    async function readWorkbook(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (ext === 'csv') {
+        const text = await file.text();
+        const wb = XLSX.read(text, { type: 'string' });
+        return wb;
+      }
+      const buf = await file.arrayBuffer();
+      return XLSX.read(buf, { type: 'array' });
+    }
+
+    function aggregateForOutput(rows) {
+      const valid = rows.filter(r => r.status === 'OK' && OUTPUT_COLUMNS.includes(r.loja));
+      const fruits = new Map();
+      const legumes = new Map();
+
+      const bump = (map, produto, loja, caixas) => {
+        if (!map.has(produto)) {
+          const obj = Object.fromEntries(OUTPUT_COLUMNS.map(c => [c, 0]));
+          obj['PRODUTO'] = produto;
+          map.set(produto, obj);
+        }
+        map.get(produto)[loja] += Number(caixas || 0);
+      };
+
+      valid.forEach(r => {
+        if (r.categoria === 'FRUTAS') bump(fruits, r.produto, r.loja, r.caixas);
+        if (r.categoria === 'LEGUMES') bump(legumes, r.produto, r.loja, r.caixas);
       });
 
-      log(`✅ Base Mestre carregada! ${BASE_MESTRE_ARRAY.length} produtos registrados e prontos.`, 'success');
-      document.getElementById('fileInput').disabled = false; // Libera seleção de pedidos
-    } catch (err) {
-      log(`Erro ao ler a Base: ${err.message}`, 'error');
-    }
-  });
-
-  // ==========================================
-  // PASSO 2: SELEÇÃO E PROCESSAMENTO DOS PEDIDOS
-  // ==========================================
-  document.getElementById('fileInput').addEventListener('change', (e) => {
-    arquivosSelecionados = Array.from(e.target.files);
-    log(`${arquivosSelecionados.length} arquivo(s) de pedido selecionado(s).`, 'info');
-    document.getElementById('btnProcessar').disabled = arquivosSelecionados.length === 0;
-    document.getElementById('btnBaixar').style.display = 'none';
-  });
-
-  document.getElementById('btnProcessar').addEventListener('click', async () => {
-    document.getElementById('btnProcessar').disabled = true;
-    log("Iniciando motor de conversão...", 'info');
-    
-    let processados = { frutas: [], legumes: [], sem_base: [], consolidado: [] };
-    let contadores = { total: 0, sucesso: 0, falha: 0 };
-
-    for (let file of arquivosSelecionados) {
-      let nomeArquivoNorm = normalizeText(file.name);
-      let lojaIdentificada = nomeArquivoNorm.includes("KRILL") ? "KRILL" : 
-                             nomeArquivoNorm.includes("BRASAO") ? "BRASAO" : 
-                             nomeArquivoNorm.includes("KROSS") ? "KROSS" : 
-                             nomeArquivoNorm.includes("CD") ? "CENTRO DISTRIBUICAO" : "LOJA INDEFINIDA";
-      
-      try {
-        const data = await file.arrayBuffer();
-        const wb = XLSX.read(data, { type: 'array' });
-        
-        wb.SheetNames.forEach(sheetName => {
-          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 });
-          if (rows.length < 2) return;
-
-          let idxProd = -1, idxQtd = -1, idxLoja = -1, linhaCabecalho = 0;
-
-          for (let r = 0; r < Math.min(10, rows.length); r++) {
-            if (!rows[r]) continue;
-            const headers = rows[r].map(h => normalizeText(h));
-            const tempProd = headers.findIndex(h => h.includes("PRODUTO") || h.includes("DESCRICAO") || h.includes("MERCADORIA"));
-            const tempQtd = headers.findIndex(h => h.includes("QTD") || h.includes("QUANT") || h.includes("PEDIDO") || h.includes("VOL") || h.includes("CX"));
-            const tempLoja = headers.findIndex(h => h.includes("LOJA") || h.includes("CLIENTE"));
-
-            if (tempProd !== -1 || tempQtd !== -1) {
-              idxProd = tempProd !== -1 ? tempProd : 0;
-              idxQtd = tempQtd !== -1 ? tempQtd : 1;
-              idxLoja = tempLoja;
-              linhaCabecalho = r;
-              break; 
-            }
-          }
-
-          if (idxProd === -1) idxProd = 0;
-          if (idxQtd === -1) idxQtd = 1;
-
-          for (let i = linhaCabecalho + 1; i < rows.length; i++) {
-            const row = rows[i];
-            const nomeProdutoRaw = row[idxProd];
-            const qtdRaw = row[idxQtd];
-
-            if (!nomeProdutoRaw || qtdRaw === undefined || qtdRaw === null || qtdRaw === "") continue;
-
-            const nomeNormalizado = normalizeText(nomeProdutoRaw);
-            if (nomeNormalizado === "PRODUTO" || nomeNormalizado === "DESCRICAO" || nomeNormalizado === "MERCADORIA" || nomeNormalizado === "ITEM") continue;
-
-            contadores.total++;
-            const qtdNum = parseFloat(qtdRaw.toString().replace(',','.'));
-            if (isNaN(qtdNum)) continue;
-
-            const lojaRow = idxLoja !== -1 && row[idxLoja] ? row[idxLoja] : lojaIdentificada;
-            const baseRef = DICIONARIO_PRODUTOS[nomeNormalizado];
-
-            let registro = {
-              LOJA: lojaRow,
-              PRODUTO_ORIGINAL: nomeProdutoRaw,
-              QTD_PEDIDA: qtdNum,
-              PRODUTO_BASE: baseRef ? baseRef.produto : "NÃO ENCONTRADO",
-              CAIXAS_CONVERTIDAS: 0,
-              TIPO: baseRef ? baseRef.tipo : "-",
-              CATEGORIA: baseRef ? baseRef.categoria : "-"
-            };
-
-            if (baseRef) {
-              let caixas = 0;
-              if (baseRef.tipo === "PESO" && baseRef.peso_caixa) caixas = Math.ceil(qtdNum / baseRef.peso_caixa);
-              else if ((baseRef.tipo === "BDJ" || baseRef.tipo === "BANDEJA") && baseRef.bandejas_por_caixa) caixas = Math.ceil(qtdNum / baseRef.bandejas_por_caixa);
-              else if ((baseRef.tipo === "UN" || baseRef.tipo === "UNIDADE") && baseRef.unidades_caixa) caixas = Math.ceil(qtdNum / baseRef.unidades_caixa);
-              else caixas = Math.ceil(qtdNum);
-              
-              registro.CAIXAS_CONVERTIDAS = caixas;
-              contadores.sucesso++;
-              
-              processados.consolidado.push(registro);
-              if (baseRef.categoria === "FRUTAS") processados.frutas.push(registro);
-              if (baseRef.categoria === "LEGUMES") processados.legumes.push(registro);
-              
-            } else {
-              registro.MOTIVO = "Produto não mapeado";
-              processados.sem_base.push(registro);
-              processados.consolidado.push(registro);
-              contadores.falha++;
-              log(`Sem Base: ${nomeProdutoRaw}`, 'warn');
-            }
-          }
+      const toSheetData = (map) => Array.from(map.values())
+        .sort((a,b) => String(a.PRODUTO).localeCompare(String(b.PRODUTO), 'pt-BR'))
+        .map(row => {
+          const out = {};
+          OUTPUT_COLUMNS.forEach(col => out[col] = col === 'PRODUTO' ? row[col] : (row[col] || 0));
+          return out;
         });
-      } catch (err) {
-        log(`Erro no arquivo ${file.name}: ${err.message}`, 'error');
-      }
+
+      return { frutas: toSheetData(fruits), legumes: toSheetData(legumes) };
     }
 
-    workbookFinal = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(processados.frutas), "FRUTAS");
-    XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(processados.legumes), "LEGUMES");
-    XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(processados.sem_base), "SEM_BASE");
-    
-    let codigosPrecos = [...processados.frutas, ...processados.legumes].sort((a, b) => a.PRODUTO_BASE.localeCompare(b.PRODUTO_BASE));
-    XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(codigosPrecos), "CODIGOS_PRECOS");
-    XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(processados.consolidado), "CONSOLIDADO");
-    XLSX.utils.book_append_sheet(workbookFinal, XLSX.utils.json_to_sheet(BASE_MESTRE_ARRAY), "BASE_MESTRE");
+    function buildWorkbook(output) {
+      const wb = XLSX.utils.book_new();
+      const frutasWs = XLSX.utils.json_to_sheet(output.frutas.length ? output.frutas : [Object.fromEntries(OUTPUT_COLUMNS.map(c => [c, c === 'PRODUTO' ? '' : 0]))], { header: OUTPUT_COLUMNS });
+      const legumesWs = XLSX.utils.json_to_sheet(output.legumes.length ? output.legumes : [Object.fromEntries(OUTPUT_COLUMNS.map(c => [c, c === 'PRODUTO' ? '' : 0]))], { header: OUTPUT_COLUMNS });
+      frutasWs['!cols'] = OUTPUT_COLUMNS.map((c, i) => ({ wch: i === 0 ? 34 : 16 }));
+      legumesWs['!cols'] = OUTPUT_COLUMNS.map((c, i) => ({ wch: i === 0 ? 34 : 16 }));
+      XLSX.utils.book_append_sheet(wb, frutasWs, 'FRUTAS');
+      XLSX.utils.book_append_sheet(wb, legumesWs, 'LEGUMES');
+      return wb;
+    }
 
-    document.getElementById('valTotal').textContent = contadores.total;
-    document.getElementById('valConvertidos').textContent = contadores.sucesso;
-    document.getElementById('valSemBase').textContent = contadores.falha;
+    function renderPreview(rows) {
+      const body = $('previewBody');
+      const sample = rows.slice(0, 250);
+      if (!sample.length) {
+        body.innerHTML = '<tr><td colspan="8" class="muted">Sem dados.</td></tr>';
+        return;
+      }
+      body.innerHTML = sample.map(r => `
+        <tr>
+          <td>${escapeHtml(r.arquivo)}</td>
+          <td>${escapeHtml(r.aba)}</td>
+          <td>${escapeHtml(r.loja || '')}</td>
+          <td>${escapeHtml(r.produto)}</td>
+          <td>${escapeHtml(niceInt(r.quantidade_original))}</td>
+          <td>${escapeHtml(r.unidade_original || '')}</td>
+          <td>${escapeHtml(niceInt(r.caixas))}</td>
+          <td class="${r.status === 'OK' ? 'ok' : 'danger'}">${escapeHtml(r.status)}</td>
+        </tr>`).join('');
+    }
 
-    log(`Processamento concluído. Sucesso: ${contadores.sucesso} | Sem base: ${contadores.falha}`, 'success');
-    document.getElementById('btnProcessar').disabled = false;
-    document.getElementById('btnBaixar').style.display = 'flex';
-  });
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
 
-  document.getElementById('btnBaixar').addEventListener('click', () => {
-    if (!workbookFinal) return;
-    XLSX.writeFile(workbookFinal, `THOTH_PRO_RESULTADO_${new Date().toISOString().split('T')[0]}.xlsx`);
-  });
-</script>
+    function updateStats(rows) {
+      $('statLinhas').textContent = String(rows.length);
+      $('statConvertidos').textContent = String(rows.filter(r => r.status === 'OK').length);
+      $('statErros').textContent = String(rows.filter(r => r.status !== 'OK').length);
+    }
+
+    $('filesInput').addEventListener('change', (e) => {
+      state.files = Array.from(e.target.files || []);
+      updateFilesList();
+    });
+
+    $('baseInput').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const wb = await readWorkbook(file);
+        const sheetName = wb.SheetNames.includes('BASE_PRODUTOS') ? 'BASE_PRODUTOS' : wb.SheetNames[0];
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+        if (!rows.length) throw new Error('Base vazia.');
+
+        const normalized = rows.map(r => {
+          const keys = Object.keys(r).reduce((acc, k) => { acc[normalizeText(k)] = r[k]; return acc; }, {});
+          return {
+            produto: keys['produto'] || keys['produto base'] || keys['item'] || keys['descricao'] || '',
+            categoria: keys['categoria'] || '',
+            tipo: keys['tipo'] || keys['modo conversao'] || '',
+            peso_caixa: keys['peso caixa'] || keys['peso_caixa'] || '',
+            bandejas_por_caixa: keys['bandejas por caixa'] || keys['bandejas_por_caixa'] || '',
+            unidades_caixa: keys['unidades caixa'] || keys['unidades_caixa'] || keys['itens por caixa'] || '',
+            sinonimos: keys['sinonimos'] || keys['sinonimo'] || ''
+          };
+        }).filter(r => String(r.produto).trim());
+
+        buildBaseMap(normalized);
+        log(`Base carregada: ${file.name} (${normalized.length} itens).`);
+      } catch (err) {
+        log(`Erro ao carregar base: ${err.message}`);
+        alert(`Erro ao carregar base: ${err.message}`);
+      }
+    });
+
+    $('btnBaixarBase').addEventListener('click', () => {
+      const ws = XLSX.utils.aoa_to_sheet(DEFAULT_BASE_ROWS);
+      ws['!cols'] = [
+        { wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 42 }
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'BASE_PRODUTOS');
+      const blob = new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      downloadBlob(blob, 'BASE_MESTRE_THOTH_MODELO.xlsx');
+    });
+
+    $('btnProcessar').addEventListener('click', async () => {
+      state.logs = [];
+      $('logBox').textContent = '';
+      state.rows = [];
+      state.workbookOut = null;
+      $('btnBaixar').disabled = true;
+
+      if (!state.files.length) {
+        alert('Selecione ao menos um pedido.');
+        return;
+      }
+
+      const forcedMode = $('modoCliente').value;
+      log('Iniciando processamento...');
+      for (const file of state.files) {
+        try {
+          const wb = await readWorkbook(file);
+          log(`Lendo arquivo: ${file.name}`);
+          for (const sheetName of wb.SheetNames) {
+            const rows = toRowsFromSheet(wb.Sheets[sheetName], file.name, sheetName, forcedMode);
+            state.rows.push(...rows);
+          }
+        } catch (err) {
+          log(`Erro em ${file.name}: ${err.message}`);
+        }
+      }
+
+      renderPreview(state.rows);
+      updateStats(state.rows);
+
+      const output = aggregateForOutput(state.rows);
+      state.workbookOut = buildWorkbook(output);
+      $('btnBaixar').disabled = false;
+
+      const ok = state.rows.filter(r => r.status === 'OK').length;
+      const err = state.rows.filter(r => r.status !== 'OK').length;
+      const semBase = state.rows.filter(r => r.status === 'SEM BASE').length;
+      const baseIncompleta = state.rows.filter(r => r.status === 'BASE INCOMPLETA').length;
+      const lojaNao = state.rows.filter(r => r.status === 'LOJA NAO IDENTIFICADA').length;
+      log(`Concluído. OK: ${ok} | Erros: ${err} | SEM BASE: ${semBase} | BASE INCOMPLETA: ${baseIncompleta} | LOJA NAO IDENTIFICADA: ${lojaNao}`);
+    });
+
+    $('btnBaixar').addEventListener('click', () => {
+      if (!state.workbookOut) return;
+      const name = ($('nomeSaida').value || 'THOTH_PRO_MULTI_CLIENTE_FINAL').trim();
+      const blob = new Blob([XLSX.write(state.workbookOut, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      downloadBlob(blob, `${name}.xlsx`);
+    });
+
+    loadDefaultBase();
+    updateFilesList();
+  </script>
 </body>
 </html>
