@@ -1,14 +1,16 @@
 import io
 import math
+import re
 import unicodedata
 from typing import Dict, List, Tuple
 
 import pandas as pd
+import pdfplumber
 import streamlit as st
 
 # =========================================================
 # THOTH PRO Multi-Cliente (Produção Final)
-# Streamlit app
+# Streamlit app com leitura automática de PDF + Excel/CSV
 # =========================================================
 
 st.set_page_config(
@@ -28,92 +30,23 @@ ERP_COLUMNS = [
 ]
 
 DEMO_BASE = [
-    {
-        "produto": "ABACAXI",
-        "categoria": "FRUTAS",
-        "tipo": "UN",
-        "unidades_caixa": 10,
-        "sinonimos": "ABACAXI HAWAI;ABACAXI PEROLA",
-    },
-    {
-        "produto": "BLUEBERRY 125G",
-        "categoria": "FRUTAS",
-        "tipo": "BDJ",
-        "bandejas_por_caixa": 12,
-        "sinonimos": "MIRTILO BLUEBERRY;MIRTILO;BLUEBERRY",
-    },
-    {
-        "produto": "CEBOLA ALBINA",
-        "categoria": "LEGUMES",
-        "tipo": "KG",
-        "peso_caixa": 20,
-        "sinonimos": "CEBOLA ARGENTINA",
-    },
-    {
-        "produto": "LARANJA PERA",
-        "categoria": "FRUTAS",
-        "tipo": "KG",
-        "peso_caixa": 20,
-        "sinonimos": "LARANJA",
-    },
-    {
-        "produto": "LIMAO TAHITI",
-        "categoria": "FRUTAS",
-        "tipo": "KG",
-        "peso_caixa": 20,
-        "sinonimos": "LIMAO;LIMAO TAHITI",
-    },
-    {
-        "produto": "MAMAO PAPAYA",
-        "categoria": "FRUTAS",
-        "tipo": "UN",
-        "unidades_caixa": 18,
-        "sinonimos": "MAMAO PAPAYA;PAPAYA",
-    },
-    {
-        "produto": "MELAO",
-        "categoria": "FRUTAS",
-        "tipo": "UN",
-        "unidades_caixa": 10,
-        "sinonimos": "MELAO",
-    },
-    {
-        "produto": "MORANGO",
-        "categoria": "FRUTAS",
-        "tipo": "BDJ",
-        "bandejas_por_caixa": 4,
-        "sinonimos": "MORANGO 250G",
-    },
-    {
-        "produto": "PHYSALIS IMPORTADO 100G",
-        "categoria": "FRUTAS",
-        "tipo": "UN",
-        "unidades_caixa": 8,
-        "sinonimos": "PHYSALIS IMPORTADO;PHYSALIS",
-    },
-    {
-        "produto": "TOMATE GRAP",
-        "categoria": "LEGUMES",
-        "tipo": "BDJ",
-        "bandejas_por_caixa": 24,
-        "sinonimos": "TOMATE GRAPE DEMARCHI;TOMATE GRAPE;TOMATE GRAPE 180G",
-    },
-    {
-        "produto": "UVA THOMPSON 500G",
-        "categoria": "FRUTAS",
-        "tipo": "BDJ",
-        "bandejas_por_caixa": 10,
-        "sinonimos": "UVA THOMPSON S/SEMENTE;UVA THOMPSON S SEMENTE;UVA THOMPSON",
-    },
-    {
-        "produto": "CARAMBOLA 400G",
-        "categoria": "FRUTAS",
-        "tipo": "BDJ",
-        "bandejas_por_caixa": 4,
-        "sinonimos": "CARAMBOLA",
-    },
+    {"produto": "ABACAXI", "categoria": "FRUTAS", "tipo": "UN", "unidades_caixa": 10, "sinonimos": "ABACAXI HAWAI;ABACAXI PEROLA"},
+    {"produto": "BLUEBERRY 125G", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 12, "sinonimos": "MIRTILO BLUEBERRY;MIRTILO;BLUEBERRY"},
+    {"produto": "CEBOLA ALBINA", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20, "sinonimos": "CEBOLA ARGENTINA"},
+    {"produto": "LARANJA PERA", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 20, "sinonimos": "LARANJA"},
+    {"produto": "LIMAO TAHITI", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 20, "sinonimos": "LIMAO;LIMAO TAHITI"},
+    {"produto": "MAMAO PAPAYA", "categoria": "FRUTAS", "tipo": "UN", "unidades_caixa": 18, "sinonimos": "MAMAO PAPAYA;PAPAYA"},
+    {"produto": "MELAO", "categoria": "FRUTAS", "tipo": "UN", "unidades_caixa": 10, "sinonimos": "MELAO"},
+    {"produto": "MORANGO", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 4, "sinonimos": "MORANGO 250G"},
+    {"produto": "PHYSALIS IMPORTADO 100G", "categoria": "FRUTAS", "tipo": "UN", "unidades_caixa": 8, "sinonimos": "PHYSALIS IMPORTADO;PHYSALIS"},
+    {"produto": "TOMATE GRAP", "categoria": "LEGUMES", "tipo": "BDJ", "bandejas_por_caixa": 24, "sinonimos": "TOMATE GRAPE DEMARCHI;TOMATE GRAPE;TOMATE GRAPE 180G"},
+    {"produto": "UVA THOMPSON 500G", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 10, "sinonimos": "UVA THOMPSON S/SEMENTE;UVA THOMPSON S SEMENTE;UVA THOMPSON"},
+    {"produto": "CARAMBOLA 400G", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 4, "sinonimos": "CARAMBOLA"},
 ]
 
+# ---------------------------------------------------------
+# UTILIDADES
+# ---------------------------------------------------------
 
 def normalizar_texto(texto) -> str:
     if pd.isna(texto):
@@ -133,7 +66,6 @@ def normalizar_produto(texto: str) -> str:
         " UND ",
         " UNID ",
         " UNIDADE ",
-        " BDJ ",
         " BANDEJA ",
     ]
 
@@ -141,12 +73,10 @@ def normalizar_produto(texto: str) -> str:
     for token in remocoes:
         s = s.replace(token, " ")
 
-    import re
-
     s = re.sub(r"\bSHELF\s*\d+\b", " ", s)
     s = re.sub(r"\bC/\d+G\b", " ", s)
-    s = re.sub(r"\b\d+G\b", " ", s)
     s = re.sub(r"\bKG\b", " ", s)
+    s = re.sub(r"\bBDJ\b", " ", s)
     s = " ".join(s.split()).strip()
 
     mapa_exato = {
@@ -186,11 +116,24 @@ def parse_numero(valor) -> float:
         return float("nan")
     if isinstance(valor, (int, float)):
         return float(valor)
+
     s = str(valor).strip()
     if not s:
         return float("nan")
+
+    # extrai o primeiro número plausível
+    m = re.search(r"[-+]?\d[\d\.,]*", s)
+    if not m:
+        return float("nan")
+
+    s = m.group(0)
     try:
-        return float(s.replace(".", "").replace(",", "."))
+        if "," in s and "." in s:
+            # tenta padrão BR: 1.234,56
+            s = s.replace(".", "").replace(",", ".")
+        elif "," in s:
+            s = s.replace(",", ".")
+        return float(s)
     except ValueError:
         return float("nan")
 
@@ -211,6 +154,7 @@ def padronizar_loja(nome_loja: str, nome_arquivo: str = "") -> str:
     if "KROSS" in nome and "XAXIM" in nome:
         return "KROSS XAXIM"
 
+    # atalhos por sigla/nome do arquivo
     if "BRASAO" in nome and "CE" in nome:
         return "BRASAO FERNANDO"
     if "BRASAO" in nome and "JA" in nome:
@@ -219,6 +163,8 @@ def padronizar_loja(nome_loja: str, nome_arquivo: str = "") -> str:
         return "BRASAO XAXIM"
     if "BRASAO" in nome and "AV" in nome:
         return "BRASAO AVENIDA"
+    if "KROSS" in nome and "ATACADO" in nome:
+        return "KROSS ATACADO"
     if "KROSS" in nome and "XX" in nome:
         return "KROSS XAXIM"
 
@@ -227,48 +173,25 @@ def padronizar_loja(nome_loja: str, nome_arquivo: str = "") -> str:
 
 def detectar_tipo_no_texto(texto: str) -> str:
     s = normalizar_texto(texto)
-    if "KG" in s:
+    if re.search(r"\bKG\b", s):
         return "KG"
-    if "BDJ" in s or "BANDEJA" in s:
+    if re.search(r"\bBDJ\b|\bBANDEJA\b", s):
         return "BDJ"
-    if "UND" in s or "UNID" in s or "UNIDADE" in s or " UN " in f" {s} ":
+    if re.search(r"\bUND\b|\bUNID\b|\bUNIDADE\b|\bUN\b", s):
         return "UN"
     return ""
 
 
-def encontrar_colunas(df: pd.DataFrame) -> Tuple[str, str, str, str]:
-    headers = list(df.columns)
-    norm = [normalizar_texto(c) for c in headers]
-
-    col_prod = headers[0] if headers else None
-    col_qtd = headers[1] if len(headers) > 1 else (headers[0] if headers else None)
-    col_loja = None
-    col_tipo = None
-
-    for i, h in enumerate(norm):
-        if any(k in h for k in ["PRODUTO", "DESCRICAO", "DESCRIÇÃO", "ITEM", "MERCADORIA"]):
-            col_prod = headers[i]
-        if any(k in h for k in ["QTD", "QUANT", "QUANTIDADE", "PEDIDO", "QTDE", "VOLUME"]):
-            col_qtd = headers[i]
-        if any(k in h for k in ["LOJA", "CLIENTE", "DESTINO", "FILIAL"]):
-            col_loJA = headers[i]
-            col_loja = col_loJA
-        if any(k in h for k in ["TIPO", "UNIDADE", "UND", "MEDIDA"]):
-            col_tipo = headers[i]
-
-    return col_prod, col_qtd, col_loja, col_tipo
+def carregar_base_demo() -> pd.DataFrame:
+    return pd.DataFrame(DEMO_BASE)
 
 
 @st.cache_data(show_spinner=False)
-def ler_arquivo_para_df(file_bytes: bytes, nome: str) -> pd.DataFrame:
+def ler_excel_ou_csv(file_bytes: bytes, nome: str) -> pd.DataFrame:
     buffer = io.BytesIO(file_bytes)
     if nome.lower().endswith(".csv"):
         return pd.read_csv(buffer)
     return pd.read_excel(buffer)
-
-
-def carregar_base_demo() -> pd.DataFrame:
-    return pd.DataFrame(DEMO_BASE)
 
 
 @st.cache_data(show_spinner=False)
@@ -292,11 +215,10 @@ def processar_base(df_base: pd.DataFrame) -> Dict[str, dict]:
             "produto": produto_norm,
             "categoria": categoria,
             "tipo": tipo,
-            "peso_caixa": peso_caixa if not math.isnan(peso_caixa) else 0,
-            "bandejas_por_caixa": bandejas_por_caixa if not math.isnan(bandejas_por_caixa) else 0,
-            "unidades_caixa": unidades_caixa if not math.isnan(unidades_caixa) else 0,
+            "peso_caixa": 0 if math.isnan(peso_caixa) else peso_caixa,
+            "bandejas_por_caixa": 0 if math.isnan(bandejas_por_caixa) else bandejas_por_caixa,
+            "unidades_caixa": 0 if math.isnan(unidades_caixa) else unidades_caixa,
         }
-
         dicionario[produto_norm] = item
 
         if sinonimos_str and sinonimos_str.lower() != "nan":
@@ -320,14 +242,12 @@ def base_incompleta(item_base: dict) -> bool:
 
 def converter_para_caixas(qtd: float, item_base: dict) -> int:
     tipo = item_base["tipo"]
-
     if tipo == "KG":
         return math.ceil(qtd / item_base["peso_caixa"])
     if tipo == "BDJ":
         return math.ceil(qtd / item_base["bandejas_por_caixa"])
     if tipo == "UN":
         return math.ceil(qtd / item_base["unidades_caixa"])
-
     raise ValueError("Tipo de conversão inválido")
 
 
@@ -337,16 +257,8 @@ def gerar_saida_erp(lista: List[dict], categoria: str) -> pd.DataFrame:
         return pd.DataFrame(columns=ERP_COLUMNS)
 
     df = pd.DataFrame(dados)
-    df_group = (
-        df.groupby(["produto_base", "loja"], as_index=False)["caixas"]
-        .sum()
-    )
-    df_pivot = (
-        df_group.pivot(index="produto_base", columns="loja", values="caixas")
-        .fillna(0)
-        .reset_index()
-    )
-
+    df_group = df.groupby(["produto_base", "loja"], as_index=False)["caixas"].sum()
+    df_pivot = df_group.pivot(index="produto_base", columns="loja", values="caixas").fillna(0).reset_index()
     df_pivot.rename(columns={"produto_base": "PRODUTO"}, inplace=True)
 
     for col in ERP_COLUMNS:
@@ -364,28 +276,152 @@ def gerar_saida_erp(lista: List[dict], categoria: str) -> pd.DataFrame:
 
 def gerar_excel_final(df_frutas: pd.DataFrame, df_legumes: pd.DataFrame) -> bytes:
     output = io.BytesIO()
-
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        if df_frutas.empty:
-            pd.DataFrame(columns=ERP_COLUMNS).to_excel(writer, sheet_name="FRUTAS", index=False)
-        else:
-            df_frutas.to_excel(writer, sheet_name="FRUTAS", index=False)
-
-        if df_legumes.empty:
-            pd.DataFrame(columns=ERP_COLUMNS).to_excel(writer, sheet_name="LEGUMES", index=False)
-        else:
-            df_legumes.to_excel(writer, sheet_name="LEGUMES", index=False)
-
+        (df_frutas if not df_frutas.empty else pd.DataFrame(columns=ERP_COLUMNS)).to_excel(writer, sheet_name="FRUTAS", index=False)
+        (df_legumes if not df_legumes.empty else pd.DataFrame(columns=ERP_COLUMNS)).to_excel(writer, sheet_name="LEGUMES", index=False)
     output.seek(0)
     return output.getvalue()
 
+# ---------------------------------------------------------
+# LEITURA AUTOMÁTICA DE PDF
+# ---------------------------------------------------------
 
-# =========================================================
+def extrair_linhas_pdf(file_bytes: bytes) -> List[str]:
+    linhas = []
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        for page in pdf.pages:
+            texto = page.extract_text() or ""
+            for linha in texto.splitlines():
+                linha = linha.strip()
+                if linha:
+                    linhas.append(linha)
+    return linhas
+
+
+def linha_irrelevante_pdf(linha: str) -> bool:
+    s = normalizar_texto(linha)
+    ruins = [
+        "PAGINA", "PAG.", "EMISSAO", "DATA", "HORA", "CNPJ", "IE", "ENDERECO",
+        "CLIENTE", "VENDEDOR", "CONDICAO", "TRANSPORTE", "OBSERVACAO", "TOTAL",
+        "SUBTOTAL", "DESCONTO", "CODIGO", "COD", "QTDE", "QTD", "PRECO", "VALOR",
+    ]
+    if len(s) < 3:
+        return True
+    return any(token in s for token in ruins)
+
+
+def inferir_loja_do_nome_arquivo(nome_arquivo: str) -> str:
+    return padronizar_loja("", nome_arquivo)
+
+
+def tentar_extrair_item_de_linha(linha: str, loja_padrao: str) -> dict | None:
+    original = linha.strip()
+    s = normalizar_texto(original)
+
+    if linha_irrelevante_pdf(s):
+        return None
+
+    # tenta pegar quantidade + tipo no fim da linha
+    padroes = [
+        r"^(?P<produto>.+?)\s+(?P<qtd>\d[\d\.,]*)\s*(?P<tipo>KG|BDJ|BANDEJA|UND|UNID|UNIDADE|UN)\b",
+        r"^(?P<produto>.+?)\s*[-–]\s*(?P<qtd>\d[\d\.,]*)\s*(?P<tipo>KG|BDJ|BANDEJA|UND|UNID|UNIDADE|UN)\b",
+        r"^(?P<produto>.+?)\s+(?P<tipo>KG|BDJ|BANDEJA|UND|UNID|UNIDADE|UN)\s*(?P<qtd>\d[\d\.,]*)\b",
+    ]
+
+    match = None
+    for padrao in padroes:
+        match = re.search(padrao, s)
+        if match:
+            break
+
+    if not match:
+        # fallback: tenta usar o último número da linha como quantidade
+        nums = re.findall(r"\d[\d\.,]*", s)
+        if not nums:
+            return None
+        qtd_txt = nums[-1]
+        qtd = parse_numero(qtd_txt)
+        if math.isnan(qtd):
+            return None
+        produto = s.replace(qtd_txt, " ").strip(" -")
+        tipo = detectar_tipo_no_texto(s)
+        if not produto:
+            return None
+        return {
+            "PRODUTO": produto,
+            "QTD": qtd,
+            "LOJA": loja_padrao,
+            "TIPO": tipo,
+        }
+
+    produto = match.group("produto").strip(" -")
+    qtd = parse_numero(match.group("qtd"))
+    tipo = normalizar_texto(match.group("tipo"))
+
+    if math.isnan(qtd) or not produto:
+        return None
+
+    if tipo == "BANDEJA":
+        tipo = "BDJ"
+    elif tipo in {"UNID", "UNIDADE", "UN"}:
+        tipo = "UN"
+
+    return {
+        "PRODUTO": produto,
+        "QTD": qtd,
+        "LOJA": loja_padrao,
+        "TIPO": tipo,
+    }
+
+
+@st.cache_data(show_spinner=False)
+def ler_pdf_para_df(file_bytes: bytes, nome: str) -> pd.DataFrame:
+    linhas = extrair_linhas_pdf(file_bytes)
+    loja_padrao = inferir_loja_do_nome_arquivo(nome)
+
+    itens = []
+    for linha in linhas:
+        item = tentar_extrair_item_de_linha(linha, loja_padrao)
+        if item:
+            itens.append(item)
+
+    return pd.DataFrame(itens, columns=["PRODUTO", "QTD", "LOJA", "TIPO"])
+
+
+def ler_pedido_generico(file_bytes: bytes, nome: str) -> pd.DataFrame:
+    nome_lower = nome.lower()
+    if nome_lower.endswith(".pdf"):
+        return ler_pdf_para_df(file_bytes, nome)
+    return ler_excel_ou_csv(file_bytes, nome)
+
+
+def encontrar_colunas(df: pd.DataFrame) -> Tuple[str, str, str, str]:
+    headers = list(df.columns)
+    norm = [normalizar_texto(c) for c in headers]
+
+    col_prod = headers[0] if headers else None
+    col_qtd = headers[1] if len(headers) > 1 else (headers[0] if headers else None)
+    col_loja = None
+    col_tipo = None
+
+    for i, h in enumerate(norm):
+        if any(k in h for k in ["PRODUTO", "DESCRICAO", "DESCRIÇÃO", "ITEM", "MERCADORIA"]):
+            col_prod = headers[i]
+        if any(k in h for k in ["QTD", "QUANT", "QUANTIDADE", "PEDIDO", "QTDE", "VOLUME"]):
+            col_qtd = headers[i]
+        if any(k in h for k in ["LOJA", "CLIENTE", "DESTINO", "FILIAL"]):
+            col_loja = headers[i]
+        if any(k in h for k in ["TIPO", "UNIDADE", "UND", "MEDIDA"]):
+            col_tipo = headers[i]
+
+    return col_prod, col_qtd, col_loja, col_tipo
+
+# ---------------------------------------------------------
 # UI
-# =========================================================
+# ---------------------------------------------------------
 
 st.title("📦 THOTH PRO Multi-Cliente (Produção Final)")
-st.caption("Motor profissional de processamento hortifruti para gerar planilhas no padrão exato do ERP Thoth.")
+st.caption("Motor profissional de processamento hortifruti para gerar planilhas no padrão exato do ERP Thoth, agora com leitura automática de PDF.")
 
 with st.sidebar:
     st.header("Configuração")
@@ -393,7 +429,7 @@ with st.sidebar:
     base_file = st.file_uploader("Base mestre", type=["xlsx", "xls", "csv"])
     pedidos_files = st.file_uploader(
         "Pedidos",
-        type=["xlsx", "xls", "csv"],
+        type=["xlsx", "xls", "csv", "pdf"],
         accept_multiple_files=True,
     )
 
@@ -401,7 +437,7 @@ if usar_base_demo:
     df_base = carregar_base_demo()
     st.sidebar.success(f"Base modelo carregada: {len(df_base)} item(ns).")
 elif base_file is not None:
-    df_base = ler_arquivo_para_df(base_file.getvalue(), base_file.name)
+    df_base = ler_excel_ou_csv(base_file.getvalue(), base_file.name)
     st.sidebar.success(f"Base carregada: {len(df_base)} linha(s).")
 else:
     df_base = None
@@ -423,26 +459,38 @@ if st.button("PROCESSAR", type="primary", use_container_width=True):
     itens_convertidos = 0
     sem_base = 0
     base_incompleta_count = 0
+    arquivos_lidos = []
 
     try:
         for pedido in pedidos_files:
-            df_pedido = ler_arquivo_para_df(pedido.getvalue(), pedido.name)
+            df_pedido = ler_pedido_generico(pedido.getvalue(), pedido.name)
+            arquivos_lidos.append({
+                "ARQUIVO": pedido.name,
+                "LINHAS_LIDAS": 0 if df_pedido is None or df_pedido.empty else len(df_pedido),
+                "TIPO": "PDF" if pedido.name.lower().endswith(".pdf") else "PLANILHA",
+            })
 
-            if df_pedido.empty:
+            if df_pedido is None or df_pedido.empty:
                 continue
 
             col_prod, col_qtd, col_loja, col_tipo = encontrar_colunas(df_pedido)
 
             for _, row in df_pedido.iterrows():
-                produto_original = str(row[col_prod]).strip() if col_prod in df_pedido.columns else ""
-                qtd = parse_numero(row[col_qtd]) if col_qtd in df_pedido.columns else float("nan")
+                produto_original = str(row[col_prod]).strip() if col_prod and col_prod in df_pedido.columns else ""
+                qtd = parse_numero(row[col_qtd]) if col_qtd and col_qtd in df_pedido.columns else float("nan")
 
                 if not produto_original or math.isnan(qtd):
                     continue
 
                 produto_normalizado = normalizar_produto(produto_original)
-                loja = padronizar_loja(row[col_loja] if col_loja else "", pedido.name)
-                tipo_detectado = normalizar_texto(row[col_tipo]) if col_tipo else detectar_tipo_no_texto(produto_original)
+                loja_bruta = row[col_loja] if col_loja and col_loja in df_pedido.columns else ""
+                loja = padronizar_loja(loja_bruta, pedido.name)
+
+                tipo_detectado = (
+                    normalizar_texto(row[col_tipo])
+                    if col_tipo and col_tipo in df_pedido.columns
+                    else detectar_tipo_no_texto(produto_original)
+                )
 
                 if not produto_normalizado or not loja:
                     continue
@@ -452,50 +500,47 @@ if st.button("PROCESSAR", type="primary", use_container_width=True):
 
                 if not item_base:
                     sem_base += 1
-                    erros.append(
-                        {
-                            "STATUS": "SEM BASE",
-                            "PRODUTO_ORIGINAL": produto_original,
-                            "PRODUTO_NORMALIZADO": produto_normalizado,
-                            "LOJA": loja,
-                            "QTD": qtd,
-                            "TIPO_DETECTADO": tipo_detectado,
-                            "MOTIVO": "Produto não encontrado na base mestre.",
-                        }
-                    )
+                    erros.append({
+                        "STATUS": "SEM BASE",
+                        "PRODUTO_ORIGINAL": produto_original,
+                        "PRODUTO_NORMALIZADO": produto_normalizado,
+                        "LOJA": loja,
+                        "QTD": qtd,
+                        "TIPO_DETECTADO": tipo_detectado,
+                        "MOTIVO": "Produto não encontrado na base mestre.",
+                        "ARQUIVO": pedido.name,
+                    })
                     continue
 
                 if base_incompleta(item_base):
                     base_incompleta_count += 1
-                    erros.append(
-                        {
-                            "STATUS": "BASE INCOMPLETA",
-                            "PRODUTO_ORIGINAL": produto_original,
-                            "PRODUTO_NORMALIZADO": produto_normalizado,
-                            "LOJA": loja,
-                            "QTD": qtd,
-                            "TIPO_DETECTADO": item_base.get("tipo", "") or tipo_detectado,
-                            "MOTIVO": "Fator obrigatório ausente para conversão.",
-                        }
-                    )
+                    erros.append({
+                        "STATUS": "BASE INCOMPLETA",
+                        "PRODUTO_ORIGINAL": produto_original,
+                        "PRODUTO_NORMALIZADO": produto_normalizado,
+                        "LOJA": loja,
+                        "QTD": qtd,
+                        "TIPO_DETECTADO": item_base.get("tipo", "") or tipo_detectado,
+                        "MOTIVO": "Fator obrigatório ausente para conversão.",
+                        "ARQUIVO": pedido.name,
+                    })
                     continue
 
                 caixas = converter_para_caixas(qtd, item_base)
                 itens_convertidos += 1
 
-                all_rows.append(
-                    {
-                        "status": "OK",
-                        "produto_original": produto_original,
-                        "produto_normalizado": produto_normalizado,
-                        "produto_base": item_base["produto"],
-                        "categoria": item_base["categoria"],
-                        "tipo": item_base["tipo"],
-                        "qtd": qtd,
-                        "caixas": caixas,
-                        "loja": loja,
-                    }
-                )
+                all_rows.append({
+                    "status": "OK",
+                    "produto_original": produto_original,
+                    "produto_normalizado": produto_normalizado,
+                    "produto_base": item_base["produto"],
+                    "categoria": item_base["categoria"],
+                    "tipo": item_base["tipo"],
+                    "qtd": qtd,
+                    "caixas": caixas,
+                    "loja": loja,
+                    "arquivo": pedido.name,
+                })
 
         df_frutas = gerar_saida_erp(all_rows, "FRUTAS")
         df_legumes = gerar_saida_erp(all_rows, "LEGUMES")
@@ -509,7 +554,10 @@ if st.button("PROCESSAR", type="primary", use_container_width=True):
 
         st.success("Processamento concluído.")
 
-        aba1, aba2, aba3 = st.tabs(["FRUTAS", "LEGUMES", "ERROS"])
+        aba0, aba1, aba2, aba3 = st.tabs(["ARQUIVOS LIDOS", "FRUTAS", "LEGUMES", "ERROS"])
+
+        with aba0:
+            st.dataframe(pd.DataFrame(arquivos_lidos), use_container_width=True)
 
         with aba1:
             st.dataframe(df_frutas, use_container_width=True)
