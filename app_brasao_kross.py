@@ -4,454 +4,270 @@ import re
 import unicodedata
 import zipfile
 from io import BytesIO
-from difflib import SequenceMatcher
-from typing import Dict, List, Tuple
 
 import pandas as pd
 import pdfplumber
 import streamlit as st
+from difflib import SequenceMatcher
 
-st.set_page_config(
-    page_title="BRASÃO / KROSS → THOTH (Modo Inteligente)",
-    page_icon="📦",
-    layout="wide",
-)
+st.set_page_config(page_title="THOTH Brasão/Kross Final", page_icon="📦", layout="wide")
 
-# =========================================================
-# CONFIG
-# =========================================================
+EMBEDDED_BASE = [{'produto': 'Abacate Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 20.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'ABACATE BREDA'}, {'produto': 'Abacaxi Perola Und', 'categoria': 'FRUTAS', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'ABACAXI PEROLA T. 8'}, {'produto': 'Alecrim Maço', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'ALECRIM'}, {'produto': 'Alho Poro Und', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 12.0, 'sinonimos': 'ALHO PORO'}, {'produto': 'Ameixa Nacional Demarchi Bdj 500g', 'categoria': 'FRUTAS', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 20.0, 'unidades_caixa': 0, 'sinonimos': 'AMEIXA NACIONAL BDJ'}, {'produto': 'Batata Doce Branca Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 18.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'BATATA DOCE BRANCA'}, {'produto': 'Batata Doce Roxa Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 18.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'BATATA DOCE ROSADA A'}, {'produto': 'Batata Salsa Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 15.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MANDIOQUINHA MÉDIA'}, {'produto': 'Berinjela Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 10.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'BERINJELA AAA'}, {'produto': 'Beterraba Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 18.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'BETERRABA AA'}, {'produto': 'Caqui Rama Forte Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 6.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'CAQUI RAMA FORTE'}, {'produto': 'Carambola De Marchi 400g', 'categoria': 'FRUTAS', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 4.0, 'unidades_caixa': 0, 'sinonimos': 'CARAMBOLA BDJ 500GR'}, {'produto': 'Cebola Argentina Branca Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 20.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'CEBOLA IMPORTADA CX 03'}, {'produto': 'Cebola Conserva Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 20.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'CEBOLA CONSERVA'}, {'produto': 'Cenoura Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 18.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'CENOURA A'}, {'produto': 'Chuchu Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 18.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'CHUCHU'}, {'produto': 'Coco Seco Fruta Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 20.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'COCO SECO'}, {'produto': 'Coentro Maço', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'COENTRO'}, {'produto': 'Figo Roxo De Marchi 300g', 'categoria': 'FRUTAS', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 3.0, 'unidades_caixa': 0, 'sinonimos': 'FIGO ROXO BAND'}, {'produto': 'Framboesa Fruta 120g', 'categoria': 'FRUTAS', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 10.0, 'unidades_caixa': 0, 'sinonimos': 'FRAMBOESA BAND'}, {'produto': 'Goiaba Nacional Vermelha Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 6.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'GOIABA VERMELHA'}, {'produto': 'Hortelã Maço', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'HORTELA'}, {'produto': 'Jatobá Fruta Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 4.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'JATOBÁ'}, {'produto': 'Kinkan Bandeja Frutamina 500g', 'categoria': 'FRUTAS', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 2.0, 'unidades_caixa': 0, 'sinonimos': 'KINKAN BAND'}, {'produto': 'Kiwi Importado Grecia Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 9.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'KIWI IMPORTADO CAL 23'}, {'produto': 'Kiwi Nacional De Marchi Bandeja 600g', 'categoria': 'FRUTAS', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 1.0, 'unidades_caixa': 0, 'sinonimos': 'KIWI BANDEJA'}, {'produto': 'Louro Maço', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'LOURO MAÇO'}, {'produto': 'Maçã Fuji Cat 1 Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 18.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MACA FUJI CAL 100'}, {'produto': 'Mamão Formosa Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 10.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MAMÃO FORMOSA'}, {'produto': 'Mamãozinho Papaya Unidade', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 10.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MAMÃO PAPAYA T. 15'}, {'produto': 'Manga Palmer Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 9.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MANGA PALMER'}, {'produto': 'Manjericão Maço', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'MANJERICÃO'}, {'produto': 'Manjerona Maço', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'MANJERONA'}, {'produto': 'Maxixe Bdj De Marchi 300g', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 13.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MAXIXI'}, {'produto': 'Melão Cantaloupe Unidade', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 12.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MELÃO CANTALOPE'}, {'produto': 'Melão Charanteais Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 9.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MELAO CHARANTEAIS'}, {'produto': 'Melão Dino Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 10.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MELÃO DINO'}, {'produto': 'Melão Espanhol Amarelo Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 13.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MELÃO AMARELO'}, {'produto': 'Melão Galia Unidade', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 6.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MELÃO GALIA'}, {'produto': 'Melão Orange Unidade', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 6.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MELÃO ORANGE'}, {'produto': 'Melão Rei Doce Redinha Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 10.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MELÃO (REDE)'}, {'produto': 'Melão Sapo Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 10.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'MELÃO (REI)'}, {'produto': 'Milho Verde Espiga De Marchi Bdj 700g', 'categoria': 'LEGUMES', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 10.0, 'unidades_caixa': 0, 'sinonimos': 'MILHO BAND'}, {'produto': 'Milho Verde Espiga De Marchi Bdj 700g', 'categoria': 'LEGUMES', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 34.0, 'unidades_caixa': 0, 'sinonimos': 'SWEET MILHO 450GR'}, {'produto': 'Milho Verde Espiga De Marchi Bdj 700g', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'MILHO VERDE DOCE'}, {'produto': 'Mirtilo Blueberry Imp. Demarchi 125g', 'categoria': 'FRUTAS', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 12.0, 'unidades_caixa': 0, 'sinonimos': 'MIRTILLO'}, {'produto': 'Nabo Unidade', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'NABO'}, {'produto': 'Pepino Japonês Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 18.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'PEPINO JAPONÊS'}, {'produto': 'Pêra Williams Argentina Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 18.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'PÊRA WILLIANS (CAL 120/135)'}, {'produto': 'Pêssego Imp Argentina Polpa Amarela Kg', 'categoria': 'FRUTAS', 'tipo': 'KG', 'peso_caixa': 9.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'PESSEGO AMARELO IMPORTADO'}, {'produto': 'Physalis Importado Colombia 100g', 'categoria': 'FRUTAS', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 8.0, 'unidades_caixa': 0, 'sinonimos': 'PHYSALES'}, {'produto': 'Pimenta Biquinho Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 1.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'PIMENTA BIQUINHO'}, {'produto': 'Pimenta Cambuci Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 8.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'PIMENTA CAMBUCI'}, {'produto': 'Pimenta Jalapeño Kg', 'categoria': 'LEGUMES', 'tipo': 'KG', 'peso_caixa': 1.0, 'bandejas_por_caixa': 0, 'unidades_caixa': 0, 'sinonimos': 'PIMENTA JALAPENO'}, {'produto': 'Salsão Aipo Unidade', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 12.0, 'sinonimos': 'SALSAO UND'}, {'produto': 'Salsão Aipo Unidade', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'SALSÃO BDJ 37419'}, {'produto': 'Salsão Aipo Unidade', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'SALSÃO VERDE 38234'}, {'produto': 'Sálvia Unidade', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'SALVIA'}, {'produto': 'Tomate Grape Demarchi 180g', 'categoria': 'LEGUMES', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 24.0, 'unidades_caixa': 0, 'sinonimos': 'TOMATE SWEET GRAPE'}, {'produto': 'Tomate Grape Demarchi 180g', 'categoria': 'LEGUMES', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 24.0, 'unidades_caixa': 0, 'sinonimos': 'TOMATE YELOW GRAPE'}, {'produto': 'Tomate Grape Demarchi 180g', 'categoria': 'LEGUMES', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 1.0, 'unidades_caixa': 0, 'sinonimos': 'TOMATE SWEET GRAPE'}, {'produto': 'Tomate Grape Demarchi 180g', 'categoria': 'LEGUMES', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 1.0, 'unidades_caixa': 0, 'sinonimos': 'TOMATE RED GRAPE'}, {'produto': 'Tomate Grape Demarchi 180g', 'categoria': 'LEGUMES', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 1.0, 'unidades_caixa': 0, 'sinonimos': 'TOMATE GRAPE 180G'}, {'produto': 'Tomilho Maço', 'categoria': 'LEGUMES', 'tipo': 'UND', 'peso_caixa': 0, 'bandejas_por_caixa': 0, 'unidades_caixa': 1.0, 'sinonimos': 'TOMILHO'}, {'produto': 'Uva Thompson S/Semente Demarchi Bdj 500g', 'categoria': 'FRUTAS', 'tipo': 'BDJ', 'peso_caixa': 0, 'bandejas_por_caixa': 10.0, 'unidades_caixa': 0, 'sinonimos': 'UVA THOMPSON BAND 500g CAT1'}]
 
 STORE_RULES = [
-    {"store_id": "BRASAO_FERNANDO", "group": "BRASAO", "col_key": "1", "display": "Brasão Fernando", "filename_signals": ["FERNANDO", "CE"], "text_signals": ["FERNANDO MACHADO", "CENTRO, 226"]},
-    {"store_id": "BRASAO_JARDIM", "group": "BRASAO", "col_key": "2", "display": "Brasão Jardim", "filename_signals": ["JARDIM", "JA"], "text_signals": ["JARDIM AMERICA", "SAO PEDRO", "2199"]},
-    {"store_id": "BRASAO_XAXIM", "group": "BRASAO", "col_key": "3", "display": "Brasão Xaxim", "filename_signals": ["XAXIM", "XX"], "text_signals": ["LUIZ LUNARDI", "XAXIM", "810"]},
-    {"store_id": "BRASAO_AVENIDA", "group": "BRASAO", "col_key": "4", "display": "Brasão Avenida", "filename_signals": ["AVENIDA", "AV"], "text_signals": ["RIO DE JANEIRO", "CENTRO, 108"]},
-    {"store_id": "BRASAO_CD", "group": "BRASAO_CD", "col_key": "CD", "display": "Brasão CD", "filename_signals": ["CD"], "text_signals": ["RUA GASPAR", "ELDORADO", "153"]},
-    {"store_id": "KROSS_CHAPECO", "group": "KROSS", "col_key": "1", "display": "Kross Atacadista", "filename_signals": ["KROSS", "CHAPECO", "ATACADO"], "text_signals": ["JOHN KENNEDY", "PASSO DOS FORTES", "550"]},
-    {"store_id": "KROSS_XAXIM", "group": "KROSS", "col_key": "2", "display": "Kross Xaxim", "filename_signals": ["KROSS", "XAXIM", "XX"], "text_signals": ["AMELIO PANIZZI", "XAXIM"]},
+    {"store_id":"BRASAO_F","group":"BRASAO","col":"BRASAO F","label":"Brasão Fernando","file_signals":["FERNANDO","CE"],"text_signals":["FERNANDO MACHADO","CENTRO, 226"]},
+    {"store_id":"BRASAO_J","group":"BRASAO","col":"BRASAO J","label":"Brasão Jardim","file_signals":["JARDIM","JA"],"text_signals":["JARDIM AMERICA","SAO PEDRO","2199"]},
+    {"store_id":"BRASAO_X","group":"BRASAO","col":"BRASAO X","label":"Brasão Xaxim","file_signals":["XAXIM","XX"],"text_signals":["LUIZ LUNARDI","XAXIM","810"]},
+    {"store_id":"BRASAO_A","group":"BRASAO","col":"BRASAO A","label":"Brasão Avenida","file_signals":["AVENIDA","AV"],"text_signals":["RIO DE JANEIRO","CENTRO, 108"]},
+    {"store_id":"KROSS_AT","group":"KROSS","col":"KROSS AT","label":"Kross Atacadista","file_signals":["KROSS","ATACADO","CHAPECO"],"text_signals":["JOHN KENNEDY","PASSO DOS FORTES","550"]},
+    {"store_id":"KROSS_X","group":"KROSS","col":"KROSS XAXIM","label":"Kross Xaxim","file_signals":["KROSS","XAXIM","XX"],"text_signals":["AMELIO PANIZZI","XAXIM"]},
+    {"store_id":"BRASAO_CD","group":"CD","col":"CD","label":"Brasão CD","file_signals":["CD"],"text_signals":["RUA GASPAR","ELDORADO","153"]},
 ]
 
-NOISE_PATTERNS = [
-    r"\bDE MARCHI\b",
-    r"\bDEMARCHI\b",
-    r"\bBRASAO\b",
-    r"\bFRUTA\b",
-    r"\bFRUTA\b",
-    r"\bFRU\b",
-    r"\bBANDEJA\b",
-    r"\bBDJ\b",
-    r"\bSHELF\b",
-    r"\bFRUTAMINA\b",
-    r"\bNACIONAL\b",
-    r"\bIMPORTADO\b",
-    r"\bARGENTINA\b",
-    r"\bGRECIA\b",
-    r"\bPOLPA AMARELA\b",
-    r"\bINTEIRA\b",
-    r"\bESPIGA\b",
-    r"\bUNIDADE\b",
-    r"\bUND\b",
-    r"\bUN\b",
-    r"\bMACO\b",
-    r"\bKG\b",
-    r"\bCAT\b",
-    r"\bCX\b",
-    r"\bCAIXA\b",
-    r"\bMARCHI\b",
+STOP_WORDS = [
+    "NUMERO DO PEDIDO","TRANSACAO","EMPRESA:","CEP:","TROCAS:","JOAB FATURAMENTO","KELLY",
+    "LEANDRO GERENTE","E-MAIL:","PG:","PEDIDO DE COMPRA","DCTO:","USUARIO:","TOTAL DO FORNECEDOR",
+    "CONTATOS DO FORNECEDOR","PAGINA","ORIG DEST","RUA ","AV. ","AV ","RUA SAO PEDRO"
 ]
 
-STOP_LINES = [
-    "NUMERO DO PEDIDO",
-    "TRANSACAO",
-    "EMPRESA:",
-    "CEP:",
-    "TROCAS:",
-    "JOAB FATURAMENTO",
-    "KELLY",
-    "LEANDRO GERENTE",
-    "E-MAIL:",
-    "PG:",
-    "PEDIDO DE COMPRA",
-    "DCTO:",
-    "USUARIO:",
-    "TOTAL DO FORNECEDOR",
-    "CONTATOS DO FORNECEDOR",
-    "PAGINA",
+REMOVE_TOKENS = [
+    "BRASAO","FRUTA","FRU","DEMARCHI","DE MARCHI","SHELF","BANDEJA","BDJ","KG","UND","UNIDADE","UN",
+    "MACO","CAT","CX","CAIXA","IMPORTADO","NACIONAL","ARGENTINA","GRECIA","DE MARCHI","FRUTAMINA"
 ]
 
-UNIT_HINTS = [
-    ("BDJ", "BDJ"),
-    ("BANDEJA", "BDJ"),
-    ("MACO", "UND"),
-    ("UNIDADE", "UND"),
-    ("UND", "UND"),
-    (" UN ", "UND"),
-    ("KG", "KG"),
-]
+def norm(v):
+    t = str(v or "").strip().upper()
+    t = unicodedata.normalize("NFKD", t).encode("ASCII","ignore").decode("utf-8")
+    return re.sub(r"\s+", " ", t).strip()
 
-MANUAL_MAP = {
-    "ABACAXI PEROLA": "ABACAXI",
-    "ABACAXI": "ABACAXI",
-    "AMEIXA NACIONAL": "AMEIXA",
-    "AMEIXA": "AMEIXA",
-    "BATATA DOCE BRANCA": "BATATA DOCE BRANCA",
-    "BATATA DOCE ROXA": "BATATA DOCE ROXA",
-    "BATATA SALSA": "BATATA SALSA",
-    "BERINJELA": "BERINJELA",
-    "BETERRABA": "BETERRABA",
-    "CAQUI RAMA FORTE": "CAQUI RAMA FORTE",
-    "CEBOLA CONSERVA": "CEBOLA CONSERVA",
-    "CEBOLA ARGENTINA": "CEBOLA ALBINA",
-    "CENOURA": "CENOURA",
-    "CHUCHU": "CHUCHU",
-    "COCO SECO": "COCO SECO",
-    "FIGO ROXO": "FIGO ROXO",
-    "FRAMBOESA": "FRAMBOESA",
-    "GOIABA NACIONAL VERMELHA": "GOIABA",
-    "GOIABA": "GOIABA",
-    "JATOBA": "JATOBA",
-    "KIWI IMPORTADO GRECIA": "KIWI IMPORTADO",
-    "KIWI IMPORTADO": "KIWI IMPORTADO",
-    "KIWI NACIONAL": "KIWI NACIONAL 600G",
-    "LARANJA MAQUINA DE SUCO": "LARANJA MAQUINA DE SUCO",
-    "LIMAO SICILIANO": "LIMAO SICILIANO",
-    "LIMAO TAHITI": "LIMAO TAHITI",
-    "MACA FUJI": "MACA FUJI",
-    "MAMAO FORMOSA": "MAMAO FORMOSA",
-    "MAMAOZINHO PAPAIA": "MAMAO PAPAYA",
-    "MAMAO PAPAYA": "MAMAO PAPAYA",
-    "MANGA PALMER": "MANGA PALMER",
-    "MAXIXE": "MAXIXE",
-    "MELAO CANTALOUPE": "MELAO CANTALOUPE",
-    "MELAO DINO": "MELAO DINO",
-    "MELAO ESPANHOL AMARELO": "MELAO ESPANHOL AMARELO",
-    "MELAO GALIA": "MELAO GALIA",
-    "MELAO ORANGE": "MELAO ORANGE",
-    "MELAO REI DOCE REDINHA": "MELAO REI DOCE REDINHA",
-    "MELAO SAPO": "MELAO SAPO",
-    "MELANCIA INTEIRA": "MELANCIA",
-    "MILHO VERDE": "MILHO VERDE",
-    "NABO": "NABO",
-    "PEPINO JAPONES": "PEPINO JAPONES",
-    "PERA WILLIANS": "PERA WILLIANS",
-    "PESSEGO IMP": "PESSEGO IMPORTADO",
-    "PESSEGO IMPORTADO": "PESSEGO IMPORTADO",
-    "PIMENTA BIQUINHO": "PIMENTA BIQUINHO",
-    "PIMENTA JALAPENO": "PIMENTA JALAPENO",
-    "SALSAO AIPO": "SALSAO AIPO",
-    "TOMATE GRAPE": "TOMATE GRAP",
-    "BLUEBERRY": "BLUEBERRY 125G",
-    "MIRTILO BLUEBERRY": "BLUEBERRY 125G",
-    "UVA THOMPSON": "UVA THOMPSON 500G",
-    "PHYSALIS": "PHYSALIS IMPORTADO 100G",
-    "CARAMBOLA": "CARAMBOLA 400G",
-}
-
-DEMO_BASE = [
-    {"produto": "ABACAXI", "categoria": "FRUTAS", "tipo": "UND", "unidades_caixa": 10, "sinonimos": "ABACAXI PEROLA"},
-    {"produto": "ABACATE", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 18},
-    {"produto": "ALECRIM", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 12},
-    {"produto": "ALHO PORO", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 12},
-    {"produto": "AMEIXA", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 20, "sinonimos": "AMEIXA NACIONAL"},
-    {"produto": "BATATA DOCE BRANCA", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "BATATA DOCE ROXA", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "BATATA SALSA", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "BERINJELA", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "BETERRABA", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "BLUEBERRY 125G", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 12, "sinonimos": "MIRTILO BLUEBERRY;BLUEBERRY"},
-    {"produto": "CAQUI RAMA FORTE", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 10},
-    {"produto": "CARAMBOLA 400G", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 4, "sinonimos": "CARAMBOLA"},
-    {"produto": "CEBOLA ALBINA", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20, "sinonimos": "CEBOLA ARGENTINA"},
-    {"produto": "CEBOLA CONSERVA", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "CENOURA", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "CHUCHU", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "COCO SECO", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "COENTRO", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 12},
-    {"produto": "FIGO ROXO", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 12},
-    {"produto": "FRAMBOESA", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 10},
-    {"produto": "GOIABA", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 10},
-    {"produto": "HORTELA", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 12},
-    {"produto": "JATOBA", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 10},
-    {"produto": "KIWI IMPORTADO", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 10, "sinonimos": "KIWI IMPORTADO GRECIA"},
-    {"produto": "KIWI NACIONAL 600G", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 15, "sinonimos": "KIWI NACIONAL"},
-    {"produto": "LARANJA MAQUINA DE SUCO", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "LIMAO SICILIANO", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "LIMAO TAHITI", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 20, "sinonimos": "LIMAO"},
-    {"produto": "LOURO", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 12},
-    {"produto": "MACA FUJI", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 18},
-    {"produto": "MAMAO FORMOSA", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 18},
-    {"produto": "MAMAO PAPAYA", "categoria": "FRUTAS", "tipo": "UND", "unidades_caixa": 18, "sinonimos": "MAMAOZINHO PAPAIA;PAPAYA"},
-    {"produto": "MANGA PALMER", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 12},
-    {"produto": "MANJERICAO", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 12},
-    {"produto": "MANJERONA", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 12},
-    {"produto": "MAXIXE", "categoria": "LEGUMES", "tipo": "BDJ", "bandejas_por_caixa": 12},
-    {"produto": "MELANCIA", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "MELAO CANTALOUPE", "categoria": "FRUTAS", "tipo": "UND", "unidades_caixa": 6},
-    {"produto": "MELAO DINO", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 10},
-    {"produto": "MELAO ESPANHOL AMARELO", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 10},
-    {"produto": "MELAO GALIA", "categoria": "FRUTAS", "tipo": "UND", "unidades_caixa": 6},
-    {"produto": "MELAO ORANGE", "categoria": "FRUTAS", "tipo": "UND", "unidades_caixa": 6},
-    {"produto": "MELAO REI DOCE REDINHA", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 10},
-    {"produto": "MELAO SAPO", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 10},
-    {"produto": "MILHO VERDE", "categoria": "LEGUMES", "tipo": "BDJ", "bandejas_por_caixa": 10},
-    {"produto": "NABO", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 10},
-    {"produto": "PEPINO JAPONES", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 20},
-    {"produto": "PERA WILLIANS", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 12},
-    {"produto": "PESSEGO IMPORTADO", "categoria": "FRUTAS", "tipo": "KG", "peso_caixa": 10},
-    {"produto": "PIMENTA BIQUINHO", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 6},
-    {"produto": "PIMENTA JALAPENO", "categoria": "LEGUMES", "tipo": "KG", "peso_caixa": 6},
-    {"produto": "SALSAO AIPO", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 12},
-    {"produto": "SALVIA", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 12},
-    {"produto": "TOMATE GRAP", "categoria": "LEGUMES", "tipo": "BDJ", "bandejas_por_caixa": 24, "sinonimos": "TOMATE GRAPE"},
-    {"produto": "TOMILHO", "categoria": "LEGUMES", "tipo": "UND", "unidades_caixa": 12},
-    {"produto": "UVA THOMPSON 500G", "categoria": "FRUTAS", "tipo": "BDJ", "bandejas_por_caixa": 10, "sinonimos": "UVA THOMPSON"},
-    {"produto": "PHYSALIS IMPORTADO 100G", "categoria": "FRUTAS", "tipo": "UND", "unidades_caixa": 8, "sinonimos": "PHYSALIS"},
-]
-
-# =========================================================
-# HELPERS
-# =========================================================
-
-def clean_text(v) -> str:
-    if v is None:
-        return ""
-    txt = str(v).strip()
-    if txt.lower() in {"nan", "none"}:
-        return ""
-    txt = unicodedata.normalize("NFKD", txt).encode("ASCII", "ignore").decode("utf-8")
-    return re.sub(r"\s+", " ", txt).strip().upper()
-
-def parse_number(v):
-    if v is None:
-        return None
-    s = clean_text(v)
+def parse_br_number(s):
+    s = str(s).strip()
     if not s:
         return None
-    m = re.search(r"\d[\d\.,]*", s)
-    if not m:
-        return None
-    num = m.group(0)
-    if "," in num and "." in num:
-        num = num.replace(".", "").replace(",", ".")
-    elif "," in num:
-        num = num.replace(",", ".")
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(".", "").replace(",", ".")
     try:
-        return float(num)
-    except:
+        return float(s)
+    except Exception:
         return None
 
-def infer_unit(text: str) -> str:
-    s = f" {clean_text(text)} "
-    for token, unit in UNIT_HINTS:
-        if f" {token} " in s:
-            return unit
-    return ""
+def load_base(uploaded):
+    if uploaded is None:
+        return pd.DataFrame(EMBEDDED_BASE)
+    if uploaded.name.lower().endswith(".csv"):
+        return pd.read_csv(uploaded)
+    return pd.read_excel(uploaded)
 
-def strip_noise_product(s: str) -> str:
-    t = f" {clean_text(s)} "
+def canonical_name(txt):
+    t = norm(txt)
     t = re.sub(r"\b\d{5,}\b", " ", t)
     t = re.sub(r"\b\d+G\b", " ", t)
     t = re.sub(r"\b\d+,\d+\b", " ", t)
     t = re.sub(r"\b\d+\b", " ", t)
-    for pat in NOISE_PATTERNS:
-        t = re.sub(pat, " ", t)
+    for tok in REMOVE_TOKENS:
+        t = re.sub(rf"\b{re.escape(tok)}\b", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
-    return t
 
-def canonical_product(s: str) -> str:
-    raw = strip_noise_product(s)
-    if raw in MANUAL_MAP:
-        return MANUAL_MAP[raw]
-    # heurísticas
-    if "TOMATE" in raw and "GRAPE" in raw:
-        return "TOMATE GRAP"
-    if "UVA" in raw and "THOMPSON" in raw:
-        return "UVA THOMPSON 500G"
-    if "MIRTILO" in raw or "BLUEBERRY" in raw:
-        return "BLUEBERRY 125G"
-    if "PHYSALIS" in raw:
-        return "PHYSALIS IMPORTADO 100G"
-    if "MAMAOZINHO" in raw or "PAPAIA" in raw:
-        return "MAMAO PAPAYA"
-    if "LARANJA" in raw and "SUCO" in raw:
-        return "LARANJA MAQUINA DE SUCO"
-    return raw
+    manual = {
+        "ABACAXI PEROLA":"ABACAXI PEROLA UND",
+        "ABACATE":"ABACATE KG",
+        "ALECRIM":"ALECRIM MACO",
+        "ALHO PORO":"ALHO PORO UND",
+        "AMEIXA":"AMEIXA NACIONAL DEMARCHI BDJ 500G",
+        "BATATA DOCE BRANCA":"BATATA DOCE BRANCA KG",
+        "BATATA DOCE ROXA":"BATATA DOCE ROXA KG",
+        "BATATA SALSA":"BATATA SALSA KG",
+        "BERINJELA":"BERINJELA KG",
+        "BETERRABA":"BETERRABA KG",
+        "CAQUI RAMA FORTE":"CAQUI RAMA FORTE KG",
+        "CARAMBOLA":"CARAMBOLA DE MARCHI 400G",
+        "CEBOLA ARGENTINA BRANCA":"CEBOLA ARGENTINA BRANCA KG",
+        "CEBOLA CONSERVA":"CEBOLA CONSERVA KG",
+        "CENOURA":"CENOURA KG",
+        "CHUCHU":"CHUCHU KG",
+        "COCO SECO":"COCO SECO FRUTA KG",
+        "COENTRO":"COENTRO MACO",
+        "FIGO ROXO":"FIGO ROXO DE MARCHI 300G",
+        "FRAMBOESA":"FRAMBOESA FRUTA 120G",
+        "GOIABA":"GOIABA NACIONAL VERMELHA KG",
+        "HORTELA":"HORTELA MACO",
+        "JATOBA":"JATOBA FRUTA KG",
+        "KIWI IMPORTADO":"KIWI IMPORTADO GRECIA KG",
+        "KIWI NACIONAL":"KIWI NACIONAL DE MARCHI 600G",
+        "LARANJA MAQUINA DE SUCO":"LARANJA MAQUINA DE SUCO KG",
+        "LIMAO SICILIANO":"LIMAO SICILIANO KG",
+        "LIMAO TAHITI":"LIMAO TAHITI KG",
+        "LOURO":"LOURO MACO",
+        "MACA FUJI":"MACA FUJI KG",
+        "MAMAO FORMOSA":"MAMAO FORMOSA KG",
+        "MAMAOZINHO PAPAIA":"MAMAOZINHO PAPAIA UND",
+        "MANGA PALMER":"MANGA PALMER KG",
+        "MANJERICAO":"MANJERICAO MACO",
+        "MANJERONA":"MANJERONA MACO",
+        "MAXIXE":"MAXIXE DE MARCHI 300G",
+        "MELAO CANTALOUPE":"MELAO CANTALOUPE UND",
+        "MELAO DINO":"MELAO DINO KG",
+        "MELAO ESPANHOL AMARELO":"MELAO ESPANHOL AMARELO KG",
+        "MELAO GALIA":"MELAO GALIA UND",
+        "MELAO ORANGE":"MELAO ORANGE UND",
+        "MELAO REI DOCE REDINHA":"MELAO REI DOCE REDINHA KG",
+        "MELAO SAPO":"MELAO SAPO KG",
+        "MELANCIA INTEIRA":"MELANCIA INTEIRA KG",
+        "MILHO VERDE":"MILHO VERDE ESPIGA 700G",
+        "NABO":"NABO UND",
+        "PEPINO JAPONES":"PEPINO JAPONES KG",
+        "PERA WILLIANS":"PERA WILLIANS ARGENTINA KG",
+        "PESSEGO IMP":"PESSEGO IMP ARGENTINA KG",
+        "PIMENTA BIQUINHO":"PIMENTA BIQUINHO KG",
+        "PIMENTA JALAPENO":"PIMENTA JALAPENO KG",
+        "SALSAO AIPO":"SALSAO AIPO UND",
+        "SALVIA":"SALVIA UND",
+        "TOMILHO":"TOMILHO MACO",
+        "TOMATE GRAPE":"TOMATE GRAPE DEMARCHI 180G",
+        "UVA THOMPSON":"UVA THOMPSON S/SEMENTE DEMARCHI BDJ 500G",
+    }
+    return manual.get(t, t)
 
-def score_similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, a, b).ratio()
-
-def identify_store(filename: str, pdf_text: str) -> dict:
-    fn = clean_text(filename)
-    txt = clean_text(pdf_text[:4000])
-    best, best_score = STORE_RULES[0], -1
-    for rule in STORE_RULES:
-        score = 0
-        for sig in rule["filename_signals"]:
-            if clean_text(sig) in fn:
-                score += 5
-        for sig in rule["text_signals"]:
-            if clean_text(sig) in txt:
-                score += 3
-        if score > best_score:
-            best_score = score
-            best = rule
-    return best
-
-def build_base_df(uploaded_file):
-    if uploaded_file is None:
-        return pd.DataFrame(DEMO_BASE)
-    if uploaded_file.name.lower().endswith(".csv"):
-        return pd.read_csv(uploaded_file)
-    return pd.read_excel(uploaded_file)
-
-def build_base_map(df: pd.DataFrame) -> Dict[str, dict]:
-    base_map = {}
-    for _, row in df.iterrows():
-        produto = row.get("produto", row.get("PRODUTO", row.get("produto_base", row.get("PRODUTO_BASE", ""))))
-        produto = canonical_product(produto)
-        if not produto:
-            continue
+def build_base_map(df):
+    out = {}
+    for _, r in df.iterrows():
+        produto = canonical_name(r.get("produto", r.get("Produto", "")))
         item = {
             "produto": produto,
-            "categoria": clean_text(row.get("categoria", row.get("CATEGORIA", ""))),
-            "tipo": clean_text(row.get("tipo", row.get("TIPO", row.get("modo_conversao", row.get("MODO_CONVERSAO", ""))))),
-            "peso_caixa": float(row.get("peso_caixa", row.get("PESO_CAIXA", 0)) or 0),
-            "bandejas_por_caixa": float(row.get("bandejas_por_caixa", row.get("BANDEJAS_POR_CAIXA", 0)) or 0),
-            "unidades_caixa": float(row.get("unidades_caixa", row.get("UNIDADES_CAIXA", row.get("itens_por_caixa", row.get("ITENS_POR_CAIXA", 0)))) or 0),
+            "categoria": norm(r.get("categoria", r.get("Categoria", ""))),
+            "tipo": norm(r.get("tipo", r.get("Tipo", ""))),
+            "peso_caixa": float(r.get("peso_caixa", r.get("Medida", 0)) or 0),
+            "bandejas_por_caixa": float(r.get("bandejas_por_caixa", r.get("Medida", 0)) or 0),
+            "unidades_caixa": float(r.get("unidades_caixa", r.get("Medida", 0)) or 0),
         }
-        base_map[produto] = item
-        syn = str(row.get("sinonimos", row.get("SINONIMOS", "")) or "")
-        for s in [x.strip() for x in syn.split(";") if x.strip()]:
-            base_map[canonical_product(s)] = item
-    return base_map
+        # se veio da base embedded por unidade
+        if "Unidade" in df.columns:
+            unidade = norm(r.get("Unidade", ""))
+            if unidade == "KG":
+                item["tipo"] = "KG"; item["peso_caixa"] = float(r.get("Medida", 0) or 0); item["bandejas_por_caixa"] = 0; item["unidades_caixa"] = 0
+            elif unidade == "BANDEJA":
+                item["tipo"] = "BDJ"; item["bandejas_por_caixa"] = float(r.get("Medida", 0) or 0); item["peso_caixa"] = 0; item["unidades_caixa"] = 0
+            else:
+                item["tipo"] = "UND"; item["unidades_caixa"] = float(r.get("Medida", 0) or 0); item["peso_caixa"] = 0; item["bandejas_por_caixa"] = 0
+            item["categoria"] = "FRUTAS" if norm(r.get("Tipo","")) == "FRUTAS" else "LEGUMES"
 
-def best_base_match(produto: str, base_map: Dict[str, dict]):
-    if produto in base_map:
-        return base_map[produto], 1.0, produto
-    best_key, best_item, best_score = None, None, 0.0
+        out[produto] = item
+        syn = str(r.get("sinonimos", r.get("Produto Demarchi", "")) or "")
+        for s in [x.strip() for x in syn.split(";") if x.strip()]:
+            out[canonical_name(s)] = item
+    return out
+
+def best_match(name, base_map):
+    if name in base_map:
+        return base_map[name], 1.0
+    best_item, best_score = None, 0
     for k, item in base_map.items():
-        score = score_similarity(produto, k)
-        if produto and k and (produto in k or k in produto):
+        score = SequenceMatcher(None, name, k).ratio()
+        if name in k or k in name:
             score = max(score, 0.92)
         if score > best_score:
-            best_key, best_item, best_score = k, item, score
+            best_item, best_score = item, score
     if best_score >= 0.78:
-        return best_item, best_score, best_key
-    return None, best_score, best_key
+        return best_item, best_score
+    return None, best_score
 
-def extract_text_from_pdf(pdf_bytes: bytes) -> str:
+def identify_store(filename, text):
+    fn = norm(filename)
+    tx = norm(text[:4000])
+    best = STORE_RULES[0]
+    best_score = -1
+    for rule in STORE_RULES:
+        score = 0
+        for sig in rule["file_signals"]:
+            if norm(sig) in fn:
+                score += 5
+        for sig in rule["text_signals"]:
+            if norm(sig) in tx:
+                score += 3
+        if score > best_score:
+            best = rule
+            best_score = score
+    return best
+
+def pdf_text(file):
     parts = []
-    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for page in pdf.pages:
-            parts.append(page.extract_text() or "")
+    with pdfplumber.open(file) as pdf:
+        for p in pdf.pages:
+            parts.append(p.extract_text() or "")
     return "\n".join(parts)
 
-def is_stop_line(line: str) -> bool:
-    s = clean_text(line)
-    return any(token in s for token in STOP_LINES)
+def is_noise(line):
+    s = norm(line)
+    if len(s) < 3:
+        return True
+    return any(tok in s for tok in STOP_WORDS)
 
-def parse_order_pdf(pdf_text: str) -> pd.DataFrame:
+def extract_items(text):
     rows = []
-    for raw in pdf_text.splitlines():
-        line = clean_text(raw)
-        if not line or is_stop_line(line):
+    for raw in text.splitlines():
+        line = norm(raw)
+        if not line or is_noise(line):
             continue
-
-        # tenta capturar linhas do pedido no formato típico
-        patterns = [
-            r"^\d+\s+[\d,]+\s+(?P<produto>.+?)\s+(?P<unit>KG|BDJ|BANDEJA|UND|UNIDADE|UN|MACO)\s+[\d,]+\s+[\d,]+\s+[\d,]+$",
-            r"^\d+\s+(?P<produto>.+?)\s+(?P<unit>KG|BDJ|BANDEJA|UND|UNIDADE|UN|MACO)\s+[\d,]+\s+[\d,]+\s+[\d,]+$",
-            r"^(?P<produto>.+?)\s+(?P<unit>KG|BDJ|BANDEJA|UND|UNIDADE|UN|MACO)\s+(?P<qtd>\d[\d,\.]*)\s+[\d,\.]+$",
-        ]
-
-        item = None
-        for p in patterns:
-            m = re.search(p, line)
-            if m:
-                item = m
-                break
-
-        produto_txt = ""
-        qtd = None
-        unit = ""
-
-        if item:
-            produto_txt = item.group("produto")
-            unit = clean_text(item.group("unit"))
-            nums = re.findall(r"\d[\d,\.]*", line)
-            if len(nums) >= 2:
-                qtd = parse_number(nums[-2])  # penúltimo costuma ser quantidade
-        else:
-            # fallback: ignora linhas sem unidade reconhecível
-            unit = infer_unit(line)
-            if not unit:
-                continue
-            nums = re.findall(r"\d[\d,\.]*", line)
-            if len(nums) < 2:
-                continue
-            qtd = parse_number(nums[-2])
-            produto_txt = line
-
+        # reconhece unidade
+        unit_match = re.search(r"\b(KG|BDJ|BANDEJA|UND|UNIDADE|UN|MACO)\b", line)
+        if not unit_match:
+            continue
+        unit = unit_match.group(1)
+        before = line[:unit_match.start()].strip()
+        after = line[unit_match.end():].strip()
+        # produto: remover códigos iniciais
+        produto = re.sub(r"^(?:\d+[\s,\.]*)+", "", before).strip()
+        # quantidade: primeiro número decimal/br depois da unidade
+        qty_match = re.search(r"(\d{1,4},\d{3}|\d+)", after)
+        if not qty_match:
+            continue
+        qtd = parse_br_number(qty_match.group(1))
         if qtd is None or qtd <= 0:
             continue
-
-        produto = canonical_product(produto_txt)
-        if not produto:
-            continue
-
-        if unit == "BANDEJA":
-            unit = "BDJ"
-        if unit in {"UNIDADE", "UN"}:
-            unit = "UND"
-
         rows.append({
-            "produto_original": produto_txt,
-            "produto_normalizado": produto,
+            "produto_pdf": produto,
+            "produto_norm": canonical_name(produto),
+            "tipo_detectado": "BDJ" if unit == "BANDEJA" else ("UND" if unit in {"UNIDADE","UN","MACO"} else unit),
             "qtd": qtd,
-            "tipo_detectado": unit,
-            "linha_original": line,
+            "linha": line,
         })
-
     df = pd.DataFrame(rows)
     if df.empty:
         return df
-    df = df.drop_duplicates(subset=["linha_original"]).reset_index(drop=True)
-    return df
+    return df.drop_duplicates(subset=["linha"]).reset_index(drop=True)
 
-def convert_item(produto: str, qtd: float, tipo_detectado: str, base_map: Dict[str, dict]):
-    base_item, score, matched_key = best_base_match(produto, base_map)
-    if not base_item:
-        return None, f"SEM BASE ({produto})"
-
-    tipo = base_item["tipo"] or tipo_detectado
-    fator = 0
+def convert_row(produto, qtd, tipo_detectado, base_map):
+    item, score = best_match(produto, base_map)
+    if item is None:
+        return None, f"SEM BASE: {produto}"
+    tipo = item["tipo"] or tipo_detectado
     if tipo == "KG":
-        fator = base_item["peso_caixa"]
+        fator = item["peso_caixa"]
     elif tipo == "BDJ":
-        fator = base_item["bandejas_por_caixa"]
-    elif tipo in {"UND", "UN"}:
+        fator = item["bandejas_por_caixa"]
+    else:
         tipo = "UND"
-        fator = base_item["unidades_caixa"]
-
+        fator = item["unidades_caixa"]
     if not fator or fator <= 0:
-        return None, f"BASE INCOMPLETA ({base_item['produto']})"
-
+        return None, f"BASE INCOMPLETA: {item['produto']}"
     caixas = math.ceil(qtd / fator)
     return {
-        "produto_base": base_item["produto"],
-        "categoria": base_item["categoria"],
-        "tipo_usado": tipo,
+        "produto_base": item["produto"],
+        "categoria": item["categoria"],
+        "tipo": tipo,
         "fator": fator,
         "caixas": int(caixas),
-        "match_score": round(score, 3),
-        "match_key": matched_key,
+        "score": round(score,3)
     }, ""
 
-def group_matrix(df: pd.DataFrame) -> pd.DataFrame:
+def matrix_for(df, columns):
     if df.empty:
-        return pd.DataFrame(columns=["Produto"])
-    out = (
-        df.groupby(["Produto", "Coluna"], as_index=False)["Caixas"]
+        out = pd.DataFrame(columns=["Produto"] + columns)
+        return out
+    piv = (
+        df.groupby(["Produto","Coluna"], as_index=False)["Caixas"]
         .sum()
         .pivot(index="Produto", columns="Coluna", values="Caixas")
         .fillna(0)
@@ -459,190 +275,148 @@ def group_matrix(df: pd.DataFrame) -> pd.DataFrame:
         .sort_values("Produto")
         .reset_index(drop=True)
     )
-    for c in out.columns:
-        if c != "Produto":
-            out[c] = out[c].astype(int)
-    return out
+    for col in columns:
+        if col not in piv.columns:
+            piv[col] = 0
+    piv = piv[["Produto"] + columns]
+    for col in columns:
+        piv[col] = piv[col].astype(int)
+    return piv
 
-def make_xlsx(df: pd.DataFrame, sheet_name: str) -> bytes:
+def write_xlsx(sheets):
     out = BytesIO()
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
-        (df if not df.empty else pd.DataFrame(columns=["Produto"])).to_excel(writer, sheet_name=sheet_name, index=False)
-        ws = writer.sheets[sheet_name]
-        ws.column_dimensions["A"].width = 42
-        for col in ["B", "C", "D", "E", "F", "G", "H"]:
-            ws.column_dimensions[col].width = 12
-    out.seek(0)
-    return out.getvalue()
-
-def make_cd_xlsx(frutas: pd.DataFrame, legumes: pd.DataFrame) -> bytes:
-    out = BytesIO()
-    with pd.ExcelWriter(out, engine="openpyxl") as writer:
-        (frutas if not frutas.empty else pd.DataFrame(columns=["Produto"])).to_excel(writer, sheet_name="FRUTAS", index=False)
-        (legumes if not legumes.empty else pd.DataFrame(columns=["Produto"])).to_excel(writer, sheet_name="LEGUMES", index=False)
-        for sh in ["FRUTAS", "LEGUMES"]:
-            ws = writer.sheets[sh]
+        for name, df in sheets.items():
+            (df if not df.empty else pd.DataFrame(columns=df.columns if hasattr(df, "columns") else ["Produto"])).to_excel(writer, sheet_name=name, index=False)
+            ws = writer.sheets[name]
             ws.column_dimensions["A"].width = 42
-            for col in ["B", "C", "D", "E", "F", "G", "H"]:
-                ws.column_dimensions[col].width = 12
+            for col in ["B","C","D","E","F","G","H"]:
+                ws.column_dimensions[col].width = 14
     out.seek(0)
     return out.getvalue()
 
-def make_log_xlsx(files_df: pd.DataFrame, errors_df: pd.DataFrame, matches_df: pd.DataFrame) -> bytes:
-    out = BytesIO()
-    with pd.ExcelWriter(out, engine="openpyxl") as writer:
-        files_df.to_excel(writer, sheet_name="ARQUIVOS", index=False)
-        errors_df.to_excel(writer, sheet_name="ERROS", index=False)
-        matches_df.to_excel(writer, sheet_name="MATCHES", index=False)
-    out.seek(0)
-    return out.getvalue()
-
-def make_zip(files: Dict[str, bytes]) -> bytes:
+def build_zip(file_map):
     out = BytesIO()
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-        for name, content in files.items():
+        for name, content in file_map.items():
             zf.writestr(name, content)
     out.seek(0)
     return out.getvalue()
 
-# =========================================================
-# UI
-# =========================================================
-
-st.title("📦 BRASÃO / KROSS → THOTH (Modo Inteligente)")
-st.caption("Suba os PDFs. O sistema identifica loja, limpa os produtos, faz match inteligente com a base e gera as planilhas separadas de Brasão, Kross e CD.")
+st.title("📦 THOTH Brasão / Kross Final")
+st.caption("Suba os PDFs e gere automaticamente Brasão Frutas, Brasão Legumes, Kross Frutas, Kross Legumes e Brasão CD.")
 
 with st.sidebar:
-    st.subheader("Fluxo")
-    st.write("1. Suba os PDFs.")
-    st.write("2. Clique em PROCESSAR.")
-    st.write("3. Baixe o ZIP final.")
-    use_demo = st.checkbox("Usar base modelo embutida", value=True)
-    base_file = st.file_uploader("Base mestre (opcional)", type=["xlsx", "xls", "csv"])
+    st.subheader("Entrada")
+    st.write("1. Suba os PDFs")
+    st.write("2. Clique em PROCESSAR")
+    st.write("3. Baixe o ZIP final")
+    base_file = st.file_uploader("Base mestre (opcional)", type=["xlsx","xls","csv"])
     pdf_files = st.file_uploader("Pedidos PDF", type=["pdf"], accept_multiple_files=True)
-
-base_df = pd.DataFrame(DEMO_BASE) if use_demo and base_file is None else build_base_df(base_file) if base_file is not None else pd.DataFrame(DEMO_BASE)
-base_map = build_base_map(base_df)
 
 if st.button("PROCESSAR", type="primary", use_container_width=True):
     if not pdf_files:
-        st.error("Envie ao menos um PDF.")
-    else:
-        try:
-            files_info = []
-            converted_rows = []
-            error_rows = []
-            match_rows = []
-            seen_units = set()
+        st.error("Envie pelo menos um PDF.")
+        st.stop()
 
-            for pdf in pdf_files:
-                pdf_text = extract_text_from_pdf(pdf.getvalue())
-                store = identify_store(pdf.name, pdf_text)
+    try:
+        base_df = load_base(base_file)
+        base_map = build_base_map(base_df)
 
-                if store["store_id"] in seen_units:
-                    error_rows.append({"Loja": store["display"], "Produto": pdf.name, "Erro": "PDF duplicado da mesma unidade"})
+        conv_rows = []
+        err_rows = []
+        match_rows = []
+        file_rows = []
+
+        for pdf in pdf_files:
+            text = pdf_text(pdf)
+            store = identify_store(pdf.name, text)
+            parsed = extract_items(text)
+
+            file_rows.append({
+                "Arquivo": pdf.name,
+                "Loja": store["label"],
+                "Grupo": store["group"],
+                "Itens extraídos": len(parsed)
+            })
+
+            for _, r in parsed.iterrows():
+                conv, err = convert_row(r["produto_norm"], r["qtd"], r["tipo_detectado"], base_map)
+                if conv is None:
+                    err_rows.append({"Loja": store["label"], "Produto": r["produto_pdf"], "Erro": err})
                     continue
-                seen_units.add(store["store_id"])
-
-                parsed = parse_order_pdf(pdf_text)
-                files_info.append({
-                    "Arquivo": pdf.name,
-                    "Loja": store["display"],
+                conv_rows.append({
                     "Grupo": store["group"],
-                    "Itens extraídos": len(parsed),
+                    "Coluna": store["col"],
+                    "Produto": conv["produto_base"],
+                    "Categoria": conv["categoria"],
+                    "Caixas": conv["caixas"],
+                })
+                match_rows.append({
+                    "Loja": store["label"],
+                    "Produto PDF": r["produto_pdf"],
+                    "Produto base": conv["produto_base"],
+                    "Qtd PDF": r["qtd"],
+                    "Tipo": conv["tipo"],
+                    "Fator": conv["fator"],
+                    "Caixas": conv["caixas"],
+                    "Score": conv["score"],
                 })
 
-                for _, row in parsed.iterrows():
-                    conv, err = convert_item(row["produto_normalizado"], row["qtd"], row["tipo_detectado"], base_map)
-                    if conv is None:
-                        error_rows.append({"Loja": store["display"], "Produto": row["produto_original"], "Erro": err})
-                        continue
+        conv_df = pd.DataFrame(conv_rows)
+        errors_df = pd.DataFrame(err_rows) if err_rows else pd.DataFrame(columns=["Loja","Produto","Erro"])
+        files_df = pd.DataFrame(file_rows)
+        matches_df = pd.DataFrame(match_rows) if match_rows else pd.DataFrame(columns=["Loja","Produto PDF","Produto base","Qtd PDF","Tipo","Fator","Caixas","Score"])
 
-                    converted_rows.append({
-                        "Grupo": store["group"],
-                        "Loja": store["display"],
-                        "Coluna": store["col_key"],
-                        "Produto": conv["produto_base"],
-                        "Categoria": conv["categoria"],
-                        "Caixas": conv["caixas"],
-                    })
-
-                    match_rows.append({
-                        "Loja": store["display"],
-                        "Produto PDF": row["produto_original"],
-                        "Produto normalizado": row["produto_normalizado"],
-                        "Produto base": conv["produto_base"],
-                        "Score": conv["match_score"],
-                        "Tipo": conv["tipo_usado"],
-                        "Qtd PDF": row["qtd"],
-                        "Fator": conv["fator"],
-                        "Caixas": conv["caixas"],
-                    })
-
-            converted_df = pd.DataFrame(converted_rows)
-            errors_df = pd.DataFrame(error_rows) if error_rows else pd.DataFrame(columns=["Loja", "Produto", "Erro"])
-            files_df = pd.DataFrame(files_info)
-            matches_df = pd.DataFrame(match_rows) if match_rows else pd.DataFrame(columns=["Loja","Produto PDF","Produto normalizado","Produto base","Score","Tipo","Qtd PDF","Fator","Caixas"])
-
-            if converted_df.empty:
-                st.error("Nenhum item foi convertido. A base precisa de mais produtos ou os PDFs vieram em formato difícil de leitura.")
-                if not errors_df.empty:
-                    st.dataframe(errors_df, use_container_width=True)
-                st.stop()
-
-            brasao = converted_df[converted_df["Grupo"] == "BRASAO"]
-            kross = converted_df[converted_df["Grupo"] == "KROSS"]
-            cd = converted_df[converted_df["Grupo"] == "BRASAO_CD"]
-
-            brasao_frutas = group_matrix(brasao[brasao["Categoria"] == "FRUTAS"])
-            brasao_legumes = group_matrix(brasao[brasao["Categoria"] == "LEGUMES"])
-            kross_frutas = group_matrix(kross[kross["Categoria"] == "FRUTAS"])
-            kross_legumes = group_matrix(kross[kross["Categoria"] == "LEGUMES"])
-            cd_frutas = group_matrix(cd[cd["Categoria"] == "FRUTAS"])
-            cd_legumes = group_matrix(cd[cd["Categoria"] == "LEGUMES"])
-
-            zip_files = {
-                "BRASAO_FRUTAS_Thoth.xlsx": make_xlsx(brasao_frutas, "BRASAO_FRUTAS"),
-                "BRASAO_LEGUMES_Thoth.xlsx": make_xlsx(brasao_legumes, "BRASAO_LEGUMES"),
-                "KROSS_FRUTAS_Thoth.xlsx": make_xlsx(kross_frutas, "KROSS_FRUTAS"),
-                "KROSS_LEGUMES_Thoth.xlsx": make_xlsx(kross_legumes, "KROSS_LEGUMES"),
-                "BRASAO_CD.xlsx": make_cd_xlsx(cd_frutas, cd_legumes),
-                "LOG_PROCESSAMENTO.xlsx": make_log_xlsx(files_df, errors_df, matches_df),
-            }
-            zip_bytes = make_zip(zip_files)
-
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("PDFs", len(pdf_files))
-            c2.metric("Itens convertidos", len(converted_df))
-            c3.metric("Ocorrências", len(errors_df))
-            c4.metric("Match médio", round(matches_df["Score"].mean(), 2) if not matches_df.empty else 0)
-
-            st.success("Modo inteligente concluído.")
-
-            tab1, tab2, tab3, tab4 = st.tabs(["Arquivos", "Matches", "Erros", "Prévia"])
-            with tab1:
-                st.dataframe(files_df, use_container_width=True)
-            with tab2:
-                st.dataframe(matches_df, use_container_width=True)
-            with tab3:
+        if conv_df.empty:
+            st.error("Nenhum item convertido. Verifique os PDFs e a base.")
+            if not errors_df.empty:
                 st.dataframe(errors_df, use_container_width=True)
-            with tab4:
-                st.write("Brasão Frutas")
-                st.dataframe(brasao_frutas, use_container_width=True)
-                st.write("Brasão Legumes")
-                st.dataframe(brasao_legumes, use_container_width=True)
-                st.write("Kross Frutas")
-                st.dataframe(kross_frutas, use_container_width=True)
-                st.write("Kross Legumes")
-                st.dataframe(kross_legumes, use_container_width=True)
+            st.stop()
 
-            st.download_button(
-                "Baixar ZIP final",
-                data=zip_bytes,
-                file_name="THOTH_BRASAO_KROSS_MODO_INTELIGENTE.zip",
-                mime="application/zip",
-                use_container_width=True,
-            )
+        brasao = conv_df[conv_df["Grupo"] == "BRASAO"]
+        kross = conv_df[conv_df["Grupo"] == "KROSS"]
+        cd = conv_df[conv_df["Grupo"] == "CD"]
 
-        except Exception as e:
-            st.error(f"Erro ao processar: {e}")
+        brasao_frutas = matrix_for(brasao[brasao["Categoria"] == "FRUTAS"], ["BRASAO F","BRASAO J","BRASAO X","BRASAO A"])
+        brasao_legumes = matrix_for(brasao[brasao["Categoria"] == "LEGUMES"], ["BRASAO F","BRASAO J","BRASAO X","BRASAO A"])
+        kross_frutas = matrix_for(kross[kross["Categoria"] == "FRUTAS"], ["KROSS AT","KROSS XAXIM"])
+        kross_legumes = matrix_for(kross[kross["Categoria"] == "LEGUMES"], ["KROSS AT","KROSS XAXIM"])
+        cd_frutas = matrix_for(cd[cd["Categoria"] == "FRUTAS"], ["CD"])
+        cd_legumes = matrix_for(cd[cd["Categoria"] == "LEGUMES"], ["CD"])
+
+        zip_bytes = build_zip({
+            "BRASAO_FRUTAS_Thoth.xlsx": write_xlsx({"BRASAO_FRUTAS": brasao_frutas}),
+            "BRASAO_LEGUMES_Thoth.xlsx": write_xlsx({"BRASAO_LEGUMES": brasao_legumes}),
+            "KROSS_FRUTAS_Thoth.xlsx": write_xlsx({"KROSS_FRUTAS": kross_frutas}),
+            "KROSS_LEGUMES_Thoth.xlsx": write_xlsx({"KROSS_LEGUMES": kross_legumes}),
+            "BRASAO_CD.xlsx": write_xlsx({"FRUTAS": cd_frutas, "LEGUMES": cd_legumes}),
+            "LOG_PROCESSAMENTO.xlsx": write_xlsx({"ARQUIVOS": files_df, "MATCHES": matches_df, "ERROS": errors_df}),
+        })
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("PDFs", len(pdf_files))
+        c2.metric("Itens convertidos", len(conv_df))
+        c3.metric("Ocorrências", len(errors_df))
+        c4.metric("Match médio", round(matches_df["Score"].mean(), 2) if not matches_df.empty else 0)
+
+        tab1, tab2, tab3, tab4 = st.tabs(["Prévia", "Matches", "Erros", "Arquivos"])
+        with tab1:
+            st.write("Brasão Legumes")
+            st.dataframe(brasao_legumes, use_container_width=True)
+            st.write("Brasão Frutas")
+            st.dataframe(brasao_frutas, use_container_width=True)
+            st.write("Kross Legumes")
+            st.dataframe(kross_legumes, use_container_width=True)
+            st.write("Kross Frutas")
+            st.dataframe(kross_frutas, use_container_width=True)
+        with tab2:
+            st.dataframe(matches_df, use_container_width=True)
+        with tab3:
+            st.dataframe(errors_df, use_container_width=True)
+        with tab4:
+            st.dataframe(files_df, use_container_width=True)
+
+        st.download_button("Baixar ZIP final", data=zip_bytes, file_name="THOTH_FINAL_BRASAO_KROSS.zip", mime="application/zip", use_container_width=True)
+    except Exception as e:
+        st.error(f"Erro ao processar: {e}")
