@@ -1,0 +1,11 @@
+ARQUIVOS PARA SUBIR NO GITHUB / STREAMLIT CLOUD
+
+1) app_brasao_kross_online.py
+2) requirements.txt
+3) pasta .streamlit com config.toml
+
+COMANDO LOCAL:
+streamlit run app_brasao_kross_online.py
+
+NO STREAMLIT CLOUD:
+- Main file path: app_brasao_kross_online.py
