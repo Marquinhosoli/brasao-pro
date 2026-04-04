@@ -21,7 +21,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Layout Rigoroso Thoth e Matemática de Caixas Ativa")
+st.write("Layout Rigoroso Thoth e Conversão Automática de Caixas")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -30,15 +30,14 @@ files = st.file_uploader(
 )
 
 # =========================
-# BASE DE CONVERSÃO EXATA 
-# Agora com o divisor (por_caixa) ativado para calcular as caixas!
+# BASE DE CONVERSÃO EXATA (Extraída da sua planilha)
 # =========================
 BASE_PRODUTOS = {
     "ABACATE KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "ABACAXI PEROLA UND": {"por_caixa": 1, "grupo": "FRUTAS"},
-    "ABOBORA PESCOCO KG": {"por_caixa": 20, "grupo": "LEGUMES"},
-    "ALECRIM MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
-    "ALHO PORO UND": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "ABOBORA PESCOCO KG": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "ALECRIM MACO": {"por_caixa": 4, "grupo": "LEGUMES"},
+    "ALHO PORO UND": {"por_caixa": 12, "grupo": "LEGUMES"},
     "AMEIXA NACIONAL DEMARCHI BDJ 500G SHELF 30": {"por_caixa": 30, "grupo": "FRUTAS"},
     "BATATA DOCE BRANCA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "BATATA DOCE ROXA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
@@ -52,25 +51,25 @@ BASE_PRODUTOS = {
     "CENOURA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "CHUCHU KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "COCO SECO FRUTA KG": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "COENTRO MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "COENTRO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "FIGO ROXO DE MARCHI 300G": {"por_caixa": 1, "grupo": "FRUTAS"},
     "FRAMBOESA FRUTA 120G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
     "GOIABA NACIONAL VERMELHA KG": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "HORTELA MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "HORTELA MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "JATOBA FRUTA KG": {"por_caixa": 1, "grupo": "FRUTAS"},
     "KINKAN BANDEJA FRUTAMINA 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
     "KIWI IMPORTADO GRECIA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
     "KIWI NACIONAL DE MARCHI BANDEJA 600G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
     "LARANJA MAQUINA DE SUCO": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "LIMAO SICILIANO KG": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "LIMAO SICILIANO KG": {"por_caixa": 15, "grupo": "FRUTAS"},
     "LIMAO TAHITI KG": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "LOURO MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "LOURO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "MACA FUJI CAT 1 KG": {"por_caixa": 18, "grupo": "FRUTAS"},
     "MAMAO FORMOSA KG": {"por_caixa": 15, "grupo": "FRUTAS"},
     "MAMAOZINHO PAPAIA UNIDADE": {"por_caixa": 18, "grupo": "FRUTAS"},
     "MANGA PALMER KG": {"por_caixa": 12, "grupo": "FRUTAS"},
-    "MANJERICAO MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
-    "MANJERONA MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "MANJERICAO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
+    "MANJERONA MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "MAXIXE BDJ DE MARCHI 300G": {"por_caixa": 12, "grupo": "LEGUMES"},
     "MELAO CANTALOUPE UNIDADE": {"por_caixa": 6, "grupo": "FRUTAS"},
     "MELAO CHARANTEAIS KG": {"por_caixa": 10, "grupo": "FRUTAS"},
@@ -79,12 +78,13 @@ BASE_PRODUTOS = {
     "MELAO GALIA UNIDADE": {"por_caixa": 6, "grupo": "FRUTAS"},
     "MELAO ORANGE UNIDADE": {"por_caixa": 6, "grupo": "FRUTAS"},
     "MELAO REI DOCE REDINHA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
-    "MELAO SAPO KG": {"por_caixa": 10, "grupo": "FRUTAS"},
+    "MELAO SAPO KG": {"por_caixa": 13, "grupo": "FRUTAS"},
+    "MELANCIA INTEIRA KG": {"por_caixa": 1, "grupo": "FRUTAS"},
     "MILHO VERDE ESPIGA DE MARCHI BDJ 700G SHELF 10": {"por_caixa": 10, "grupo": "LEGUMES"},
     "MIRTILO BLUEBERRY IMP. DEMARCHI 125G": {"por_caixa": 12, "grupo": "FRUTAS"},
-    "NABO UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
-    "PEPINO JAPONES KG": {"por_caixa": 20, "grupo": "LEGUMES"},
-    "PERA WILLIANS ARGENTINA KG": {"por_caixa": 19, "grupo": "FRUTAS"},
+    "NABO UNIDADE": {"por_caixa": 6, "grupo": "LEGUMES"},
+    "PEPINO JAPONES KG": {"por_caixa": 18, "grupo": "LEGUMES"},
+    "PERA WILLIANS ARGENTINA KG": {"por_caixa": 18, "grupo": "FRUTAS"},
     "PESSEGO IMP ARGENTINA POLPA AMARELA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
     "PHYSALIS IMPORTADO COLOMBIA 100G": {"por_caixa": 8, "grupo": "FRUTAS"},
     "PIMENTA BIQUINHO KG": {"por_caixa": 1, "grupo": "LEGUMES"},
@@ -197,17 +197,17 @@ def converter_para_final(produto: str, quantidade_original: float, unidade_encon
     por_caixa = info.get("por_caixa")
     grupo = info["grupo"]
 
-    # ======= CÁLCULO EXATO =======
+    # ======= CÁLCULO MATEMÁTICO REAL =======
     if unidade_encontrada == "cx":
-        # Se no PDF já estiver escrito "CX" ou "Caixas", ele não divide, só assume.
+        # Se no PDF já estiver escrito "CX", mantém.
         qtd_final = math.ceil(quantidade_original)
         obs = "Já em CX"
-    elif por_caixa and por_caixa > 1:  
-        # Se for KG/UN/BDJ e tiver regra na base, DIVIDE pelo peso da caixa (Ex: 360kg / 18 = 20)
+    elif por_caixa and float(por_caixa) > 0:  
+        # Divide pelo peso da caixa e arredonda pra cima (Ex: 360kg / 18 = 20 Caixas)
         qtd_final = math.ceil(quantidade_original / float(por_caixa))
-        obs = f"Dividiu por {por_caixa}"
+        obs = f"Divisão por {por_caixa}"
     else:           
-        # Se o peso da caixa for 1, mantém igual (Ex: Alecrim = 1)
+        # Fator de segurança
         qtd_final = math.ceil(quantidade_original)
         obs = "Base = 1"
 
@@ -308,7 +308,7 @@ def gerar_arquivos_excel(df):
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
             df_erros[["produto_final", "qtd_original", "loja_cod", "arquivo"]].rename(columns={
                 "produto_final": "NOME DO PRODUTO (Cadastre na Base)",
-                "qtd_original": "Quantidade",
+                "qtd_original": "Quantidade Recebida",
                 "loja_cod": "Loja Número",
                 "arquivo": "PDF"
             }).to_excel(writer, index=False, sheet_name="ITENS REJEITADOS")
