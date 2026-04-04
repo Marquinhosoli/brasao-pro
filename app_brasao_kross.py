@@ -117,39 +117,52 @@ def extrair_linhas_relevantes(texto: str):
 def parse_linha_produto(linha: str):
     """
     Parser Flexível com suporte nativo ao layout do ERP Flex (Brasão/Kross).
-    Lê a linha como colunas e identifica unidade mesmo separada da quantidade.
+    Lê a linha normal de pedido e também a tabela de PENDÊNCIAS.
     """
     l = normalizar_nome(linha)
 
-    # 1. TENTA O PADRÃO ERP FLEX (BRASÃO / KROSS)
+    # 1. PADRÃO ERP FLEX (PEDIDO NORMAL)
     m_flex = re.search(r"^\s*\d+\s+\d+\s+(.*?)\s+(\d+[.,]\d+)\s+(\d+)\s+\d+[.,]\d+\s+\d+[.,]\d+\s*$", l)
-    
     if m_flex:
         descricao = m_flex.group(1)
         qtd = float(m_flex.group(3))
         
         m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b", descricao)
-        
-        if m_un:
-            un_raw = m_un.group(1)
-        else:
-            un_raw = "CX"
+        un_raw = m_un.group(1) if m_un else "CX"
 
         produto = re.sub(r"\b(BRASAO FRUTA|DE MARCHI|SHELF \d+)\b", "", descricao).strip()
         produto = normalizar_nome(produto)
         
-        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
-            unidade = "kg"
-        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]:
-            unidade = "un"
-        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]:
-            unidade = "cx"
-        else:
-            unidade = "bdj"
+        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]: unidade = "kg"
+        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]: unidade = "un"
+        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]: unidade = "cx"
+        else: unidade = "bdj"
             
         return produto, qtd, unidade
 
-    # 2. PADRÃO GENÉRICO (Fallback)
+    # 2. PADRÃO ERP FLEX (TABELA DE PENDÊNCIAS)
+    # Ex: "003 003 TC 130915 MELANCIA INTEIRA KG BRASAO FRU0000000032162 97,035 184,37"
+    m_pend = re.search(r"^\s*\d{3}\s+\d{3}\s+[A-Z]{2}\s+\d+\s+(.*?)\s+(\d+[.,]\d+)\s+\d+[.,]\d+\s*$", l)
+    if m_pend:
+        descricao = m_pend.group(1)
+        qtd = float(m_pend.group(2).replace(",", "."))
+        
+        m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b", descricao)
+        un_raw = m_un.group(1) if m_un else "CX"
+        
+        # Limpa o código de barras colado na marca (ex: Fru0000000032162)
+        produto = re.sub(r"\d{10,}", "", descricao)
+        produto = re.sub(r"\b(BRASAO FRU\w*|BRASAO FRUTA|DE MARCHI|SHELF \d+)\b", "", produto).strip()
+        produto = normalizar_nome(produto)
+        
+        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]: unidade = "kg"
+        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]: unidade = "un"
+        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]: unidade = "cx"
+        else: unidade = "bdj"
+            
+        return produto, qtd, unidade
+
+    # 3. PADRÃO GENÉRICO (Fallback)
     padrao = r"(\d+[.,]?\d*)\s*(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b"
     m = re.search(padrao, l)
 
@@ -165,6 +178,15 @@ def parse_linha_produto(linha: str):
         
         if not produto:
             return None
+
+        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]: unidade = "kg"
+        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]: unidade = "un"
+        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]: unidade = "cx"
+        else: unidade = "bdj"
+
+        return produto, qtd, unidade
+
+    return None
 
         if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
             unidade = "kg"
