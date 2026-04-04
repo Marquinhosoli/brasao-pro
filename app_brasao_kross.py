@@ -116,39 +116,47 @@ def extrair_linhas_relevantes(texto: str):
 
 def parse_linha_produto(linha: str):
     """
-    Identifica o Produto, Quantidade e Unidade independentemente da ordem.
-    Ex suportados: "PRODUTO 400 KG", "PRODUTO - 200 UN", "10 CX PRODUTO"
+    Parser Flexível: Procura Quantidade+Unidade em qualquer lugar da linha,
+    ignora códigos de sistema e preços da ponta, e extrai o nome do produto.
     """
     l = normalizar_nome(linha)
 
-    # 1. Tenta padrão clássico: [PRODUTO] [QTD] [UNIDADE] no final da linha
-    m1 = re.search(r"^(.*?)\s+[-:]?\s*(\d+[.,]?\d*)\s*(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\s*$", l)
+    # Procura um padrão como "10.5 KG", "20 CX", "5 BDJ" usando limites de palavra (\b)
+    padrao = r"(\d+[.,]?\d*)\s*(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b"
     
-    # 2. Tenta padrão invertido: [QTD] [UNIDADE] [PRODUTO] no início da linha
-    m2 = re.search(r"^\s*(\d+[.,]?\d*)\s*(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\s+[-:]?\s*(.*?)$", l)
+    m = re.search(padrao, l)
 
-    if m1:
-        produto = normalizar_nome(m1.group(1))
-        qtd = float(m1.group(2).replace(",", "."))
-        un_raw = m1.group(3)
-    elif m2:
-        qtd = float(m2.group(1).replace(",", "."))
-        un_raw = m2.group(2)
-        produto = normalizar_nome(m2.group(3))
-    else:
-        return None
+    if m:
+        qtd = float(m.group(1).replace(",", "."))
+        un_raw = m.group(2)
+        
+        # Remove a quantidade e a unidade da linha original para sobrar o resto
+        texto_restante = l.replace(m.group(0), " ")
+        
+        # 1. Limpa códigos de produto no início da linha (Ex: "123456 - ")
+        texto_restante = re.sub(r"^\s*\d+\s*[-:]?\s*", "", texto_restante)
+        
+        # 2. Limpa preços ou números perdidos no final da linha (Ex: " R$ 15,00 150,00")
+        texto_restante = re.sub(r"\s+\d+[.,]\d+\s*.*$", "", texto_restante)
+        
+        produto = normalizar_nome(texto_restante)
+        
+        if not produto:
+            return None
 
-    # Normaliza a unidade extraída
-    if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
-        unidade = "kg"
-    elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]:
-        unidade = "un"
-    elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]:
-        unidade = "cx"
-    else:
-        unidade = "bdj"
+        # Normaliza a unidade final
+        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
+            unidade = "kg"
+        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]:
+            unidade = "un"
+        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]:
+            unidade = "cx"
+        else:
+            unidade = "bdj"
 
-    return produto, qtd, unidade
+        return produto, qtd, unidade
+
+    return None
 
 def localizar_base(produto: str):
     p = normalizar_nome(produto)
@@ -187,9 +195,7 @@ def converter_para_caixa(produto: str, quantidade: float, unidade_encontrada: st
             "observacao": "BASE_INVALIDA"
         }
 
-    # ====================================================
-    # LÓGICA DE CONVERSÃO CORRIGIDA
-    # ====================================================
+    # Lógica de conversão
     if unidade_encontrada == "cx":
         # Se o pedido no PDF já é em "caixas", NÃO dividimos pela base
         qtd_caixa = math.ceil(quantidade)
@@ -395,4 +401,4 @@ if st.button("🔥 PROCESSAR PEDIDOS", use_container_width=False):
                 st.write(f"**{arq}** → {linha}")
 
 else:
-    st.markdown('<div class="small-muted">Layout atualizado. O motor agora lê CX, BDJ, KG e UN em qualquer ordem e converte a fração adequadamente.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="small-muted">Layout atualizado. O motor agora procura a quantidade em qualquer lugar da linha, ignorando códigos de produto e preços tabelados.</div>', unsafe_allow_html=True)
