@@ -21,7 +21,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Layout Rigoroso Thoth e Nova Lógica de Conversão Oficial")
+st.write("Layout Rigoroso Thoth e Matemática de Caixas Ativa")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -30,75 +30,75 @@ files = st.file_uploader(
 )
 
 # =========================
-# BASE DE CONVERSÃO EXATA (Importada do seu CSV)
-# Qtd_por_cx = None significa "Sem conversão", mantendo a quantidade original do PDF.
+# BASE DE CONVERSÃO EXATA 
+# Agora com o divisor (por_caixa) ativado para calcular as caixas!
 # =========================
 BASE_PRODUTOS = {
-    "ABACATE KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "ABACAXI PEROLA UND": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "ABOBORA PESCOCO KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "ALECRIM MACO": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "ALHO PORO UND": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "AMEIXA NACIONAL DEMARCHI BDJ 500G SHELF 30": {"qtd_por_cx": 30, "grupo": "FRUTAS"},
-    "BATATA DOCE BRANCA KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "BATATA DOCE ROXA KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "BATATA SALSA KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "BERINJELA KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "BETERRABA KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "CAQUI RAMA FORTE KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "CARAMBOLA DE MARCHI 400G": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "CEBOLA ARGENTINA BRANCA KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "CEBOLA CONSERVA KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "CENOURA KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "CHUCHU KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "COCO SECO FRUTA KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "COENTRO MACO": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "FIGO ROXO DE MARCHI 300G": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "FRAMBOESA FRUTA 120G SHELF 15": {"qtd_por_cx": 15, "grupo": "FRUTAS"},
-    "GOIABA NACIONAL VERMELHA KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "HORTELA MACO": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "JATOBA FRUTA KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "KINKAN BANDEJA FRUTAMINA 500G": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "KIWI IMPORTADO GRECIA KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "KIWI NACIONAL DE MARCHI BANDEJA 600G SHELF 15": {"qtd_por_cx": 15, "grupo": "FRUTAS"},
-    "LARANJA MAQUINA DE SUCO": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "LIMAO SICILIANO KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "LIMAO TAHITI KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "LOURO MACO": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "MACA FUJI CAT 1 KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MAMAO FORMOSA KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MAMAOZINHO PAPAIA UNIDADE": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MANGA PALMER KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MANJERICAO MACO": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "MANJERONA MACO": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "MAXIXE BDJ DE MARCHI 300G": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "MELAO CANTALOUPE UNIDADE": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MELAO CHARANTEAIS KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MELAO DINO KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MELAO ESPANHOL AMARELO KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MELAO GALIA UNIDADE": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MELAO ORANGE UNIDADE": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MELAO REI DOCE REDINHA KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MELAO SAPO KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "MILHO VERDE ESPIGA DE MARCHI BDJ 700G SHELF 10": {"qtd_por_cx": 10, "grupo": "LEGUMES"},
-    "MIRTILO BLUEBERRY IMP. DEMARCHI 125G": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "NABO UNIDADE": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "PEPINO JAPONES KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "PERA WILLIANS ARGENTINA KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "PESSEGO IMP ARGENTINA POLPA AMARELA KG": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "PHYSALIS IMPORTADO COLOMBIA 100G": {"qtd_por_cx": None, "grupo": "FRUTAS"},
-    "PIMENTA BIQUINHO KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "PIMENTA CAMBUCI KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "PIMENTA JALAPENO KG": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "SALSAO AIPO UNIDADE": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "SALVIA UNIDADE": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "TOMATE GRAPE DEMARCHI 180G SHELF 10": {"qtd_por_cx": 10, "grupo": "LEGUMES"},
-    "TOMILHO MACO": {"qtd_por_cx": None, "grupo": "LEGUMES"},
-    "UVA THOMPSON S/SEMENTE DEMARCHI BDJ 500G": {"qtd_por_cx": None, "grupo": "FRUTAS"},
+    "ABACATE KG": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "ABACAXI PEROLA UND": {"por_caixa": 1, "grupo": "FRUTAS"},
+    "ABOBORA PESCOCO KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "ALECRIM MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "ALHO PORO UND": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "AMEIXA NACIONAL DEMARCHI BDJ 500G SHELF 30": {"por_caixa": 30, "grupo": "FRUTAS"},
+    "BATATA DOCE BRANCA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "BATATA DOCE ROXA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "BATATA SALSA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "BERINJELA KG": {"por_caixa": 10, "grupo": "LEGUMES"},
+    "BETERRABA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "CAQUI RAMA FORTE KG": {"por_caixa": 6, "grupo": "FRUTAS"},
+    "CARAMBOLA DE MARCHI 400G": {"por_caixa": 4, "grupo": "FRUTAS"},
+    "CEBOLA ARGENTINA BRANCA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "CEBOLA CONSERVA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "CENOURA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "CHUCHU KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "COCO SECO FRUTA KG": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "COENTRO MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "FIGO ROXO DE MARCHI 300G": {"por_caixa": 1, "grupo": "FRUTAS"},
+    "FRAMBOESA FRUTA 120G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
+    "GOIABA NACIONAL VERMELHA KG": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "HORTELA MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "JATOBA FRUTA KG": {"por_caixa": 1, "grupo": "FRUTAS"},
+    "KINKAN BANDEJA FRUTAMINA 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
+    "KIWI IMPORTADO GRECIA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
+    "KIWI NACIONAL DE MARCHI BANDEJA 600G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
+    "LARANJA MAQUINA DE SUCO": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "LIMAO SICILIANO KG": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "LIMAO TAHITI KG": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "LOURO MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "MACA FUJI CAT 1 KG": {"por_caixa": 18, "grupo": "FRUTAS"},
+    "MAMAO FORMOSA KG": {"por_caixa": 15, "grupo": "FRUTAS"},
+    "MAMAOZINHO PAPAIA UNIDADE": {"por_caixa": 18, "grupo": "FRUTAS"},
+    "MANGA PALMER KG": {"por_caixa": 12, "grupo": "FRUTAS"},
+    "MANJERICAO MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "MANJERONA MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "MAXIXE BDJ DE MARCHI 300G": {"por_caixa": 12, "grupo": "LEGUMES"},
+    "MELAO CANTALOUPE UNIDADE": {"por_caixa": 6, "grupo": "FRUTAS"},
+    "MELAO CHARANTEAIS KG": {"por_caixa": 10, "grupo": "FRUTAS"},
+    "MELAO DINO KG": {"por_caixa": 10, "grupo": "FRUTAS"},
+    "MELAO ESPANHOL AMARELO KG": {"por_caixa": 13, "grupo": "FRUTAS"},
+    "MELAO GALIA UNIDADE": {"por_caixa": 6, "grupo": "FRUTAS"},
+    "MELAO ORANGE UNIDADE": {"por_caixa": 6, "grupo": "FRUTAS"},
+    "MELAO REI DOCE REDINHA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
+    "MELAO SAPO KG": {"por_caixa": 10, "grupo": "FRUTAS"},
+    "MILHO VERDE ESPIGA DE MARCHI BDJ 700G SHELF 10": {"por_caixa": 10, "grupo": "LEGUMES"},
+    "MIRTILO BLUEBERRY IMP. DEMARCHI 125G": {"por_caixa": 12, "grupo": "FRUTAS"},
+    "NABO UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "PEPINO JAPONES KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "PERA WILLIANS ARGENTINA KG": {"por_caixa": 19, "grupo": "FRUTAS"},
+    "PESSEGO IMP ARGENTINA POLPA AMARELA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
+    "PHYSALIS IMPORTADO COLOMBIA 100G": {"por_caixa": 8, "grupo": "FRUTAS"},
+    "PIMENTA BIQUINHO KG": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "PIMENTA CAMBUCI KG": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "PIMENTA JALAPENO KG": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "SALSAO AIPO UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "SALVIA UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "TOMATE GRAPE DEMARCHI 180G SHELF 10": {"por_caixa": 10, "grupo": "LEGUMES"},
+    "TOMILHO MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "UVA THOMPSON S/SEMENTE DEMARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
 }
 
 # =========================
-# CABEÇALHOS DO THOTH EXATOS (Duas linhas)
+# CABEÇALHOS DO THOTH EXATOS
 # =========================
 configs = [
     ("BRASAO", "FRUTAS", "BRASAO - FRUTAS PRE PEDIDO BRANCO.xlsx", ["1", "2", "3", "4"],
@@ -143,11 +143,9 @@ def identificar_loja(nome_arquivo: str):
 def parse_linha_produto(linha: str):
     l = linha.strip()
     
-    # Ignora lixos do cabeçalho
     if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR"]):
         return None
 
-    # NOVO PARSER: Isola a descrição do produto preservando o nome original
     m_flex = re.search(r"^(.*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
     if m_flex:
         descricao_bruta = m_flex.group(1).strip()
@@ -157,57 +155,61 @@ def parse_linha_produto(linha: str):
             qtd = float(qtd_str)
         except ValueError:
             return None
-        
-        # Pula códigos numéricos iniciais pra pegar só os nomes (ex: 1364057 Maca Fuji)
+            
         m_desc = re.search(r"[A-Za-z].*$", descricao_bruta)
         if not m_desc: return None
             
         produto = m_desc.group(0).upper()
         
-        # Limpa APENAS a marca comercial que o sistema cola no final do nome, preservando o resto
+        # Recuperando a unidade (para saber se o PDF já pediu direto em Caixa)
+        m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
+        unidade_encontrada = "cx" if m_un and m_un.group(1) in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"] else "outros"
+        
         for m in ["BRASAO FRUTA", "DE MARCHI", "FRUTAMINA"]:
             if produto.endswith(m):
                 produto = produto[:-len(m)].strip()
         
-        return produto, qtd
+        return produto, qtd, unidade_encontrada
 
     return None
 
 def localizar_base(produto: str):
     p = produto.upper()
-    # Busca Exata
     if p in BASE_PRODUTOS:
         return p, BASE_PRODUTOS[p]
-    # Busca Parcial (Fallback)
     for chave in BASE_PRODUTOS:
         if chave in p or p in chave:
             return chave, BASE_PRODUTOS[chave]
     return p, None
 
-def converter_para_final(produto: str, quantidade_original: float):
+def converter_para_final(produto: str, quantidade_original: float, unidade_encontrada: str):
     nome_base, info = localizar_base(produto)
 
     if not info:
         return {
-            "produto_final": produto, # Retorna o nome original caso o Thoth não conheça
+            "produto_final": produto,
             "grupo": "NAO_IDENTIFICADO",
             "qtd_original": quantidade_original,
-            "qtd_final": quantidade_original,
+            "qtd_final": math.ceil(quantidade_original),
             "observacao": "PRODUTO NOVO"
         }
 
-    qtd_por_cx = info.get("qtd_por_cx")
+    por_caixa = info.get("por_caixa")
     grupo = info["grupo"]
 
-    # ======= AQUI ESTÁ O CÁLCULO EXATO DA SUA PLANILHA =======
-    if qtd_por_cx:  
-        # Se tem fator de caixa (Ex: Tomate Grape), divide.
-        qtd_final = math.ceil(quantidade_original / float(qtd_por_cx))
-        obs = "Convertido CX"
+    # ======= CÁLCULO EXATO =======
+    if unidade_encontrada == "cx":
+        # Se no PDF já estiver escrito "CX" ou "Caixas", ele não divide, só assume.
+        qtd_final = math.ceil(quantidade_original)
+        obs = "Já em CX"
+    elif por_caixa and por_caixa > 1:  
+        # Se for KG/UN/BDJ e tiver regra na base, DIVIDE pelo peso da caixa (Ex: 360kg / 18 = 20)
+        qtd_final = math.ceil(quantidade_original / float(por_caixa))
+        obs = f"Dividiu por {por_caixa}"
     else:           
-        # Se NÃO TEM (Ex: Maçã Fuji, Abacate), MANTÉM OS 36kg originais sem tocar.
-        qtd_final = quantidade_original
-        obs = "Mantido Orig."
+        # Se o peso da caixa for 1, mantém igual (Ex: Alecrim = 1)
+        qtd_final = math.ceil(quantidade_original)
+        obs = "Base = 1"
 
     return {
         "produto_final": nome_base,
@@ -234,14 +236,13 @@ def processar_arquivo(uploaded_file):
         limpa = l.strip()
         if not limpa: continue
         
-        # BLOQUEIO ANTI-LIXO DO CD: Se ele ler isso, a extração PARA IMEDIATAMENTE.
         if "PENDENCIAS DE MERCADORIAS" in limpa.upper():
             break 
             
         item = parse_linha_produto(limpa)
         if item:
-            produto, qtd = item
-            conv = converter_para_final(produto, qtd)
+            produto, qtd, unid = item
+            conv = converter_para_final(produto, qtd, unid)
             conv["cliente"] = cliente
             conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
@@ -250,13 +251,12 @@ def processar_arquivo(uploaded_file):
     return itens
 
 # =========================
-# GERAÇÃO THOTH EXCEL (Cabeçalho Duplo)
+# GERAÇÃO THOTH EXCEL
 # =========================
 def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
     df_filtro = df_itens[(df_itens["cliente"] == cliente) & (df_itens["grupo"] == grupo)]
     if df_filtro.empty: return pd.DataFrame() 
 
-    # Agrupa por Loja
     pivot = pd.pivot_table(
         df_filtro, values='qtd_final', index='produto_final',
         columns='loja_cod', aggfunc='sum', fill_value=0
@@ -264,15 +264,12 @@ def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
 
     pivot.rename(columns={'produto_final': 'PRODUTO'}, inplace=True)
 
-    # Garante que as colunas 1, 2, 3, 4 existam
     for col in colunas_numericas:
         if col not in pivot.columns:
             pivot[col] = 0
 
-    # Adiciona a coluna TOTAL
     pivot["TOTAL"] = pivot[colunas_numericas].sum(axis=1)
     
-    # Preenche colunas extras vazias para bater exatamente com a largura do cabeçalho
     current_cols = ["PRODUTO"] + colunas_numericas + ["TOTAL"]
     for i in range(len(sub_head) - len(current_cols)):
         col_nome = f"EXTRA_{i}"
@@ -280,7 +277,7 @@ def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
         current_cols.append(col_nome)
         
     pivot = pivot[current_cols].sort_values(by="PRODUTO").reset_index(drop=True)
-    pivot = pivot[pivot["TOTAL"] > 0] # Remove os zerados
+    pivot = pivot[pivot["TOTAL"] > 0] 
 
     return pivot
 
@@ -296,18 +293,15 @@ def gerar_arquivos_excel(df):
                 workbook = writer.book
                 worksheet = workbook.add_worksheet("Plan1")
                 
-                # Desenhando o Cabeçalho Duplo EXATO do CSV Thoth
                 for col_i, val in enumerate(sup_head): worksheet.write(0, col_i, val)
                 for col_i, val in enumerate(sub_head): worksheet.write(1, col_i, val)
                     
-                # Escrevendo os dados na Linha 3 (Index 2 do Excel)
                 for row_i, row_data in enumerate(df_gerado.values):
                     for col_i, val in enumerate(row_data):
                         worksheet.write(row_i + 2, col_i, val)
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # Planilha de acompanhamento e auditoria (Itens Novos/Rejeitados)
     df_erros = df[df["grupo"] == "NAO_IDENTIFICADO"]
     if not df_erros.empty:
         output = io.BytesIO()
