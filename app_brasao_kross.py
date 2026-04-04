@@ -122,23 +122,19 @@ def parse_linha_produto(linha: str):
     l = normalizar_nome(linha)
 
     # 1. TENTA O PADRÃO ERP FLEX (BRASÃO / KROSS)
-    # Ex: "282286 12 ABOBORA PESCOCO KG BRASAO FRUTA 20,000 20 3,8000 76,00"
     m_flex = re.search(r"^\s*\d+\s+\d+\s+(.*?)\s+(\d+[.,]\d+)\s+(\d+)\s+\d+[.,]\d+\s+\d+[.,]\d+\s*$", l)
     
     if m_flex:
         descricao = m_flex.group(1)
-        # O group(2) pega o "20,000" e o group(3) pega o "20"
-        qtd = float(m_flex.group(3)) # Usamos o "Qtde Emb" inteiro, que é mais seguro
+        qtd = float(m_flex.group(3))
         
-        # Procura a unidade dentro da descrição do produto
         m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b", descricao)
         
         if m_un:
             un_raw = m_un.group(1)
         else:
-            un_raw = "CX" # Assume caixa ou unidade se não encontrar nada
+            un_raw = "CX"
 
-        # Limpa o nome do produto tirando as marcas conhecidas para facilitar o de/para
         produto = re.sub(r"\b(BRASAO FRUTA|DE MARCHI|SHELF \d+)\b", "", descricao).strip()
         produto = normalizar_nome(produto)
         
@@ -154,7 +150,6 @@ def parse_linha_produto(linha: str):
         return produto, qtd, unidade
 
     # 2. PADRÃO GENÉRICO (Fallback)
-    # Ex: "10 KG de Abacate" ou "Abacate 10 CX"
     padrao = r"(\d+[.,]?\d*)\s*(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b"
     m = re.search(padrao, l)
 
@@ -168,21 +163,9 @@ def parse_linha_produto(linha: str):
         
         produto = normalizar_nome(texto_restante)
         
-        if not produto: return None
+        if not produto:
+            return None
 
-        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
-            unidade = "kg"
-        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]:
-            unidade = "un"
-        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]:
-            unidade = "cx"
-        else:
-            unidade = "bdj"
-
-        return produto, qtd, unidade
-
-    return None
-        # Normaliza a unidade final
         if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
             unidade = "kg"
         elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]:
@@ -208,14 +191,12 @@ def localizar_base(produto: str):
 def converter_para_caixa(produto: str, quantidade: float, unidade_encontrada: str):
     nome_base, info = localizar_base(produto)
 
-    # Se não encontrar na base
     if not info:
         return {
             "produto_final": nome_base,
             "grupo": "NAO_IDENTIFICADO",
             "qtd_original": quantidade,
             "unidade_original": unidade_encontrada,
-            # Se já for caixa, assumimos o número direto. Caso contrário, mantém a qtd.
             "qtd_caixa": math.ceil(quantidade) if unidade_encontrada == "cx" else quantidade,
             "observacao": "SEM_BASE"
         }
@@ -233,12 +214,9 @@ def converter_para_caixa(produto: str, quantidade: float, unidade_encontrada: st
             "observacao": "BASE_INVALIDA"
         }
 
-    # Lógica de conversão
     if unidade_encontrada == "cx":
-        # Se o pedido no PDF já é em "caixas", NÃO dividimos pela base
         qtd_caixa = math.ceil(quantidade)
     else:
-        # Se for KG, UN ou BDJ, dividimos pelo fator da base
         qtd_caixa = math.ceil(quantidade / por_caixa)
 
     return {
@@ -439,4 +417,4 @@ if st.button("🔥 PROCESSAR PEDIDOS", use_container_width=False):
                 st.write(f"**{arq}** → {linha}")
 
 else:
-    st.markdown('<div class="small-muted">Layout atualizado. O motor agora procura a quantidade em qualquer lugar da linha, ignorando códigos de produto e preços tabelados.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="small-muted">Layout atualizado e alinhamento corrigido. O motor agora procura a quantidade em qualquer lugar da linha.</div>', unsafe_allow_html=True)
