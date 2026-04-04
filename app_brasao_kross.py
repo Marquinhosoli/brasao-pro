@@ -116,34 +116,72 @@ def extrair_linhas_relevantes(texto: str):
 
 def parse_linha_produto(linha: str):
     """
-    Parser Flexível: Procura Quantidade+Unidade em qualquer lugar da linha,
-    ignora códigos de sistema e preços da ponta, e extrai o nome do produto.
+    Parser Flexível com suporte nativo ao layout do ERP Flex (Brasão/Kross).
+    Lê a linha como colunas e identifica unidade mesmo separada da quantidade.
     """
     l = normalizar_nome(linha)
 
-    # Procura um padrão como "10.5 KG", "20 CX", "5 BDJ" usando limites de palavra (\b)
-    padrao = r"(\d+[.,]?\d*)\s*(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b"
+    # 1. TENTA O PADRÃO ERP FLEX (BRASÃO / KROSS)
+    # Ex: "282286 12 ABOBORA PESCOCO KG BRASAO FRUTA 20,000 20 3,8000 76,00"
+    m_flex = re.search(r"^\s*\d+\s+\d+\s+(.*?)\s+(\d+[.,]\d+)\s+(\d+)\s+\d+[.,]\d+\s+\d+[.,]\d+\s*$", l)
     
+    if m_flex:
+        descricao = m_flex.group(1)
+        # O group(2) pega o "20,000" e o group(3) pega o "20"
+        qtd = float(m_flex.group(3)) # Usamos o "Qtde Emb" inteiro, que é mais seguro
+        
+        # Procura a unidade dentro da descrição do produto
+        m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b", descricao)
+        
+        if m_un:
+            un_raw = m_un.group(1)
+        else:
+            un_raw = "CX" # Assume caixa ou unidade se não encontrar nada
+
+        # Limpa o nome do produto tirando as marcas conhecidas para facilitar o de/para
+        produto = re.sub(r"\b(BRASAO FRUTA|DE MARCHI|SHELF \d+)\b", "", descricao).strip()
+        produto = normalizar_nome(produto)
+        
+        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
+            unidade = "kg"
+        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]:
+            unidade = "un"
+        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]:
+            unidade = "cx"
+        else:
+            unidade = "bdj"
+            
+        return produto, qtd, unidade
+
+    # 2. PADRÃO GENÉRICO (Fallback)
+    # Ex: "10 KG de Abacate" ou "Abacate 10 CX"
+    padrao = r"(\d+[.,]?\d*)\s*(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b"
     m = re.search(padrao, l)
 
     if m:
         qtd = float(m.group(1).replace(",", "."))
         un_raw = m.group(2)
         
-        # Remove a quantidade e a unidade da linha original para sobrar o resto
         texto_restante = l.replace(m.group(0), " ")
-        
-        # 1. Limpa códigos de produto no início da linha (Ex: "123456 - ")
         texto_restante = re.sub(r"^\s*\d+\s*[-:]?\s*", "", texto_restante)
-        
-        # 2. Limpa preços ou números perdidos no final da linha (Ex: " R$ 15,00 150,00")
         texto_restante = re.sub(r"\s+\d+[.,]\d+\s*.*$", "", texto_restante)
         
         produto = normalizar_nome(texto_restante)
         
-        if not produto:
-            return None
+        if not produto: return None
 
+        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
+            unidade = "kg"
+        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]:
+            unidade = "un"
+        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]:
+            unidade = "cx"
+        else:
+            unidade = "bdj"
+
+        return produto, qtd, unidade
+
+    return None
         # Normaliza a unidade final
         if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
             unidade = "kg"
