@@ -133,10 +133,14 @@ def parse_linha_produto(linha: str):
         produto = re.sub(r"\b(BRASAO FRUTA|DE MARCHI|SHELF \d+)\b", "", descricao).strip()
         produto = normalizar_nome(produto)
         
-        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]: unidade = "kg"
-        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]: unidade = "un"
-        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]: unidade = "cx"
-        else: unidade = "bdj"
+        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
+            unidade = "kg"
+        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]:
+            unidade = "un"
+        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]:
+            unidade = "cx"
+        else:
+            unidade = "bdj"
             
         return produto, qtd, unidade
 
@@ -155,10 +159,14 @@ def parse_linha_produto(linha: str):
         produto = re.sub(r"\b(BRASAO FRU\w*|BRASAO FRUTA|DE MARCHI|SHELF \d+)\b", "", produto).strip()
         produto = normalizar_nome(produto)
         
-        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]: unidade = "kg"
-        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]: unidade = "un"
-        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]: unidade = "cx"
-        else: unidade = "bdj"
+        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
+            unidade = "kg"
+        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]:
+            unidade = "un"
+        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]:
+            unidade = "cx"
+        else:
+            unidade = "bdj"
             
         return produto, qtd, unidade
 
@@ -178,15 +186,6 @@ def parse_linha_produto(linha: str):
         
         if not produto:
             return None
-
-        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]: unidade = "kg"
-        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]: unidade = "un"
-        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]: unidade = "cx"
-        else: unidade = "bdj"
-
-        return produto, qtd, unidade
-
-    return None
 
         if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]:
             unidade = "kg"
@@ -439,4 +438,4 @@ if st.button("🔥 PROCESSAR PEDIDOS", use_container_width=False):
                 st.write(f"**{arq}** → {linha}")
 
 else:
-    st.markdown('<div class="small-muted">Layout atualizado e alinhamento corrigido. O motor agora procura a quantidade em qualquer lugar da linha.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="small-muted">Layout atualizado e alinhamento corrigido. O motor agora lê pedidos e pendências perfeitamente.</div>', unsafe_allow_html=True)
