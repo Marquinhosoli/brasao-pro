@@ -41,16 +41,16 @@ h1 {
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Upload dos pedidos (PDF ou Excel) para separar em arquivos Thoth")
+st.write("Processamento e Conversão para Importação Thoth (Arquivos Separados)")
 
 files = st.file_uploader(
-    "Envie os arquivos",
+    "Envie os PDFs de pedidos",
     type=["pdf", "xlsx", "xls"],
     accept_multiple_files=True
 )
 
 # =========================
-# BASE DE CONVERSÃO
+# BASE DE CONVERSÃO (Atualizada com seus itens)
 # =========================
 BASE_PRODUTOS = {
     "ABACAXI PEROLA": {"modo": "un", "por_caixa": 1, "grupo": "FRUTAS"},
@@ -59,6 +59,8 @@ BASE_PRODUTOS = {
     "ALECRIM": {"modo": "un", "por_caixa": 1, "grupo": "LEGUMES"},
     "ALHO PORO": {"modo": "un", "por_caixa": 1, "grupo": "LEGUMES"},
     "AMEIXA NACIONAL": {"modo": "bdj", "por_caixa": 30, "grupo": "FRUTAS"},
+    "BATATA ASTERIX": {"modo": "kg", "por_caixa": 20, "grupo": "LEGUMES"},
+    "BATATA BOLINHA": {"modo": "kg", "por_caixa": 20, "grupo": "LEGUMES"},
     "BATATA DOCE BRANCA": {"modo": "kg", "por_caixa": 20, "grupo": "LEGUMES"},
     "BATATA DOCE ROXA": {"modo": "kg", "por_caixa": 20, "grupo": "LEGUMES"},
     "BATATA SALSA": {"modo": "kg", "por_caixa": 20, "grupo": "LEGUMES"},
@@ -96,7 +98,7 @@ BASE_PRODUTOS = {
     "MELAO ORANGE": {"modo": "un", "por_caixa": 6, "grupo": "FRUTAS"},
     "MELAO REI DOCE": {"modo": "kg", "por_caixa": 10, "grupo": "FRUTAS"},
     "MELAO SAPO": {"modo": "kg", "por_caixa": 10, "grupo": "FRUTAS"},
-    "MELANCIA INTEIRA": {"modo": "kg", "por_caixa": 1, "grupo": "FRUTAS"},
+    "MELANCIA": {"modo": "kg", "por_caixa": 1, "grupo": "FRUTAS"},
     "MILHO VERDE": {"modo": "bdj", "por_caixa": 10, "grupo": "LEGUMES"},
     "MIRTILO BLUEBERRY": {"modo": "bdj", "por_caixa": 12, "grupo": "FRUTAS"},
     "NABO": {"modo": "un", "por_caixa": 1, "grupo": "LEGUMES"},
@@ -115,7 +117,7 @@ BASE_PRODUTOS = {
 }
 
 # =========================
-# FUNÇÕES DE EXTRAÇÃO
+# FUNÇÕES DE EXTRAÇÃO E LIMPEZA
 # =========================
 def normalizar_nome(texto: str) -> str:
     texto = (texto or "").upper().strip()
@@ -127,24 +129,24 @@ def normalizar_nome(texto: str) -> str:
 
 def identificar_loja(nome_arquivo: str):
     """
-    Mapeia o nome do arquivo enviado para as Colunas reais do Thoth.
+    Identifica o cliente e mapeia para a Coluna numérica exata que a planilha Thoth exige.
     """
     n = normalizar_nome(nome_arquivo)
     
-    # Regras KROSS
-    if "KROSS" in n and "XAXIM" in n: return "KROSS", "KROSS XAXIM"
-    if "KROSS" in n: return "KROSS", "KROSS ATACADO" # Chapeco = Atacado
+    # Regras KROSS (1 = Chapeco/Atacado, 2 = Xaxim)
+    if "KROSS" in n and "XAXIM" in n: return "KROSS", "2"
+    if "KROSS" in n: return "KROSS", "1"
     
     # Regras CD
-    if "CD" in n: return "BRASAO CD", "BRASAO CD"
+    if "CD" in n: return "BRASAO CD", "1"
     
-    # Regras BRASAO
-    if "FERNANDO" in n: return "BRASAO", "BRASAO FERNANDO"
-    if "JARDIM" in n: return "BRASAO", "BRASAO JARDIM"
-    if "XAXIM" in n: return "BRASAO", "BRASAO XAXIM"
-    if "AVENIDA" in n: return "BRASAO", "BRASAO AVENIDA"
+    # Regras BRASAO (1 = Fernando, 2 = Jardim, 3 = Xaxim, 4 = Avenida)
+    if "FERNANDO" in n: return "BRASAO", "1"
+    if "JARDIM" in n: return "BRASAO", "2"
+    if "XAXIM" in n: return "BRASAO", "3"
+    if "AVENIDA" in n: return "BRASAO", "4"
     
-    return "OUTROS", "DESCONHECIDO"
+    return "OUTROS", "0"
 
 def extrair_texto_pdf(uploaded_file) -> str:
     texto = []
@@ -156,43 +158,30 @@ def extrair_texto_pdf(uploaded_file) -> str:
 
 def parse_linha_produto(linha: str):
     l = normalizar_nome(linha)
+    
+    # Ignora cabeçalhos que possam gerar falsos positivos
+    if "TOTAL" in l or "PESO" in l or "FRETE" in l:
+        return None
 
-    # 1. PADRÃO ERP FLEX (PEDIDO NORMAL)
-    m_flex = re.search(r"^\s*\d+\s+\d+\s+(.*?)\s+(\d+[.,]\d+)\s+(\d+)\s+\d+[.,]\d+\s+\d+[.,]\d+\s*$", l)
+    # NOVO PARSER BLINDADO: Aceita 0, 1 ou 2 códigos no início e isola a matemática no final.
+    # Ex: [131393] [ABACATE KG BRASAO FRUTA] [200,000] [200] [3,3000] [660,00]
+    m_flex = re.search(r"^(?:[\d\s-]*\s+)?([A-Z].*?)\s+(\d+[.,]\d+)\s+(\d+)\s+\d+[.,]\d+\s+\d+[.,]\d+\s*$", l)
+    
     if m_flex:
         descricao = m_flex.group(1)
-        qtd = float(m_flex.group(3)) # Pega a "Qtde Emb" (Sempre inteiro/fração redonda)
+        qtd = float(m_flex.group(2).replace(",", ".")) # Usamos a Quantidade exata do peso/unidade
         
-        m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b", descricao)
+        # Procura a unidade dentro do nome (KG, BDJ, UN, etc)
+        m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", descricao)
         un_raw = m_un.group(1) if m_un else "CX"
 
-        # Limpeza para nome base
-        produto = re.sub(r"\b(BRASAO FRUTA|DE MARCHI|SHELF \d+|FRUTAMINA|KG|UN|BDJ)\b", "", descricao).strip()
+        # Limpa marcas e descrições inúteis do nome final
+        produto = re.sub(r"\b(BRASAO FRU\w*|BRASAO FRUTA|DE MARCHI|SHELF \d+|FRUTAMINA)\b", "", descricao)
+        produto = re.sub(r"\b(KG|KGS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|CX|CXS|MACO|MACOS)\b", "", produto).strip()
         produto = normalizar_nome(produto)
         
         if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]: unidade = "kg"
-        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]: unidade = "un"
-        elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]: unidade = "cx"
-        else: unidade = "bdj"
-            
-        return produto, qtd, unidade
-
-    # 2. PADRÃO ERP FLEX (TABELA DE PENDÊNCIAS)
-    m_pend = re.search(r"^\s*\d{3}\s+\d{3}\s+[A-Z]{2}\s+\d+\s+(.*?)\s+(\d+[.,]\d+)\s+\d+[.,]\d+\s*$", l)
-    if m_pend:
-        descricao = m_pend.group(1)
-        qtd = float(m_pend.group(2).replace(",", "."))
-        
-        m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES)\b", descricao)
-        un_raw = m_un.group(1) if m_un else "CX"
-        
-        # Limpa codigo de barras e marcas
-        produto = re.sub(r"\d{10,}", "", descricao)
-        produto = re.sub(r"\b(BRASAO FRU\w*|BRASAO FRUTA|DE MARCHI|SHELF \d+|FRUTAMINA|KG|UN|BDJ)\b", "", produto).strip()
-        produto = normalizar_nome(produto)
-        
-        if un_raw in ["KG", "KGS", "QUILO", "QUILOS"]: unidade = "kg"
-        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES"]: unidade = "un"
+        elif un_raw in ["UN", "UND", "UNID", "UNIDADE", "UNIDADES", "MACO", "MACOS"]: unidade = "un"
         elif un_raw in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"]: unidade = "cx"
         else: unidade = "bdj"
             
@@ -202,14 +191,11 @@ def parse_linha_produto(linha: str):
 
 def localizar_base(produto: str):
     p = normalizar_nome(produto)
-    
     if p in BASE_PRODUTOS:
         return p, BASE_PRODUTOS[p]
-        
     for chave in BASE_PRODUTOS:
         if chave in p:
             return chave, BASE_PRODUTOS[chave]
-            
     return p, None
 
 def converter_para_caixa(produto: str, quantidade: float, unidade_encontrada: str):
@@ -254,11 +240,20 @@ def converter_para_caixa(produto: str, quantidade: float, unidade_encontrada: st
 
 def processar_arquivo(uploaded_file):
     nome = uploaded_file.name
-    cliente, loja = identificar_loja(nome)
+    cliente, loja_num = identificar_loja(nome)
 
     if nome.lower().endswith(".pdf"):
         texto = extrair_texto_pdf(uploaded_file)
-        linhas = [l.strip() for l in texto.splitlines() if l.strip()]
+        linhas = []
+        for l in texto.splitlines():
+            limpa = l.strip()
+            if not limpa: continue
+            
+            # BLOQUEIO ANTI-LIXO: Ignora Pendências do CD
+            if "PENDENCIAS DE MERCADORIAS" in normalizar_nome(limpa):
+                break # Para de ler o arquivo daqui pra baixo
+                
+            linhas.append(limpa)
     else:
         df_excel = pd.read_excel(uploaded_file)
         linhas = [" ".join([str(x) for x in row if pd.notna(x)]) for _, row in df_excel.iterrows()]
@@ -271,50 +266,50 @@ def processar_arquivo(uploaded_file):
             produto, qtd, unidade = item
             conv = converter_para_caixa(produto, qtd, unidade)
             conv["cliente"] = cliente
-            conv["loja"] = loja
+            conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
             itens.append(conv)
 
     return itens
 
 # =========================
-# GERAÇÃO DE ARQUIVOS SEPARADOS
+# GERAÇÃO DE ARQUIVOS SEPARADOS (Padrão Thoth CSV)
 # =========================
-def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_padrao):
+def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas):
     """
-    Filtra os dados e cria a Tabela Dinâmica exata que o ERP Thoth exige
+    Cria a Tabela Dinâmica com colunas '1', '2', '3', '4' e 'TOTAL' para bater exato com o ERP.
     """
     df_filtro = df_itens[(df_itens["cliente"] == cliente) & (df_itens["grupo"] == grupo)]
     
     if df_filtro.empty:
-        return pd.DataFrame() # Retorna vazio se não houver pedido
+        return pd.DataFrame() 
 
     # Agrupa por Produto e Loja (Pivot Table / Matriz)
     pivot = pd.pivot_table(
         df_filtro,
         values='qtd_caixa',
         index='produto_final',
-        columns='loja',
+        columns='loja_cod',
         aggfunc='sum',
         fill_value=0
     ).reset_index()
 
     pivot.rename(columns={'produto_final': 'PRODUTO'}, inplace=True)
 
-    # Garante que todas as colunas do template Thoth existam, mesmo vazias
-    for col in colunas_padrao:
+    # Garante que as colunas (1, 2, 3...) existam
+    for col in colunas_numericas:
         if col not in pivot.columns:
             pivot[col] = 0
 
-    # Reordena na ordem exigida pelo sistema
-    pivot = pivot[colunas_padrao]
-    
-    # Ordena de A-Z
-    pivot = pivot.sort_values(by="PRODUTO").reset_index(drop=True)
+    # Adiciona a coluna TOTAL
+    pivot["TOTAL"] = pivot[colunas_numericas].sum(axis=1)
 
-    # Remove linhas onde a quantidade em todas as filiais for 0
-    lojas = [c for c in colunas_padrao if c != "PRODUTO"]
-    pivot = pivot[pivot[lojas].sum(axis=1) > 0]
+    # Organiza a ordem exata do CSV
+    colunas_finais = ["PRODUTO"] + colunas_numericas + ["TOTAL"]
+    pivot = pivot[colunas_finais].sort_values(by="PRODUTO").reset_index(drop=True)
+
+    # Limpa quem não teve pedido em nenhuma loja
+    pivot = pivot[pivot["TOTAL"] > 0]
 
     return pivot
 
@@ -324,14 +319,13 @@ def gerar_arquivos_excel(df):
     """
     arquivos = {}
 
-    # Configuração dos Arquivos e Colunas (Baseado nos seus modelos CSV)
     configs = [
-        ("BRASAO", "FRUTAS", "BRASAO - FRUTAS.xlsx", ["PRODUTO", "BRASAO FERNANDO", "BRASAO JARDIM", "BRASAO XAXIM", "BRASAO AVENIDA"]),
-        ("BRASAO", "LEGUMES", "BRASAO - LEGUMES.xlsx", ["PRODUTO", "BRASAO FERNANDO", "BRASAO JARDIM", "BRASAO XAXIM", "BRASAO AVENIDA"]),
-        ("KROSS", "FRUTAS", "KROSS - FRUTAS.xlsx", ["PRODUTO", "KROSS ATACADO", "KROSS XAXIM"]),
-        ("KROSS", "LEGUMES", "KROSS - LEGUMES.xlsx", ["PRODUTO", "KROSS ATACADO", "KROSS XAXIM"]),
-        ("BRASAO CD", "FRUTAS", "BRASAO CD - FRUTAS.xlsx", ["PRODUTO", "BRASAO CD"]),
-        ("BRASAO CD", "LEGUMES", "BRASAO CD - LEGUMES.xlsx", ["PRODUTO", "BRASAO CD"]),
+        ("BRASAO", "FRUTAS", "BRASAO_FRUTAS_IMPORTACAO.xlsx", ["1", "2", "3", "4"]),
+        ("BRASAO", "LEGUMES", "BRASAO_LEGUMES_IMPORTACAO.xlsx", ["1", "2", "3", "4"]),
+        ("KROSS", "FRUTAS", "KROSS_FRUTAS_IMPORTACAO.xlsx", ["1", "2"]),
+        ("KROSS", "LEGUMES", "KROSS_LEGUMES_IMPORTACAO.xlsx", ["1", "2"]),
+        ("BRASAO CD", "FRUTAS", "BRASAO_CD_FRUTAS_IMPORTACAO.xlsx", ["1"]),
+        ("BRASAO CD", "LEGUMES", "BRASAO_CD_LEGUMES_IMPORTACAO.xlsx", ["1"]),
     ]
 
     for cliente, grupo, nome_arquivo, colunas in configs:
@@ -340,40 +334,40 @@ def gerar_arquivos_excel(df):
         if not df_gerado.empty:
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                # O Thoth geralmente lê a aba "Plan1"
+                # O Thoth geralmente lê a aba "Plan1" padrão do Excel
                 df_gerado.to_excel(writer, index=False, sheet_name="Plan1")
             arquivos[nome_arquivo] = output.getvalue()
 
-    # --- ITENS SEM BASE (Apenas para você conferir o que deu erro) ---
+    # Planilha de erros para auditoria
     df_sem_base = df[df["grupo"] == "NAO_IDENTIFICADO"][
-        ["produto_final", "qtd_original", "unidade_original", "loja", "arquivo"]
+        ["produto_final", "qtd_original", "unidade_original", "loja_cod", "arquivo"]
     ].rename(columns={
-        "produto_final": "Produto Recebido do PDF",
+        "produto_final": "NOME EXTRAÍDO (Adicione à Base)",
         "qtd_original": "Qtd Original",
         "unidade_original": "Unidade",
-        "loja": "Filial",
+        "loja_cod": "Filial",
         "arquivo": "PDF de Origem"
     })
     
     if not df_sem_base.empty:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_sem_base.to_excel(writer, index=False, sheet_name="ERROS")
-        arquivos["ITENS_SEM_BASE.xlsx"] = output.getvalue()
+            df_sem_base.to_excel(writer, index=False, sheet_name="ITENS REJEITADOS")
+        arquivos["ITENS_NAO_RECONHECIDOS.xlsx"] = output.getvalue()
 
     return arquivos
 
 # =========================
-# BOTÃO PROCESSAR
+# BOTÃO PROCESSAR E BAIXAR
 # =========================
-if st.button("🔥 PROCESSAR PEDIDOS E GERAR ARQUIVOS", use_container_width=False):
+if st.button("🔥 PROCESSAR PEDIDOS (Gerar Arquivos Individuais)", use_container_width=False):
     if not files:
         st.warning("Envie pelo menos um arquivo de pedido (PDF/Excel).")
         st.stop()
 
     todos_itens = []
 
-    with st.spinner("Processando pedidos e gerando planilhas separadas..."):
+    with st.spinner("Processando pedidos, filtrando lixo e construindo planilhas..."):
         for f in files:
             try:
                 itens = processar_arquivo(f)
@@ -382,24 +376,23 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR ARQUIVOS", use_container_width=Fals
                 st.error(f"Erro ao processar {f.name}: {e}")
 
     if not todos_itens:
-        st.error("Nenhum item foi reconhecido. Verifique os PDFs.")
+        st.error("Nenhum item foi reconhecido. Verifique se o formato bate com o padrão Flex.")
         st.stop()
 
     df = pd.DataFrame(todos_itens)
 
-    st.success("Tudo pronto! Planilhas separadas geradas com sucesso.")
+    st.success("Tudo pronto! Matrizes geradas rigorosamente no padrão CSV do Thoth.")
 
     c1, c2, c3 = st.columns(3)
     c1.markdown(f'<div class="result-card"><b>Arquivos Lidos</b><br>{len(files)}</div>', unsafe_allow_html=True)
     c2.markdown(f'<div class="result-card"><b>Itens Convertidos</b><br>{len(df[df["grupo"] != "NAO_IDENTIFICADO"])}</div>', unsafe_allow_html=True)
-    c3.markdown(f'<div class="result-card"><b>Sem Base (Não Exportados)</b><br>{len(df[df["grupo"] == "NAO_IDENTIFICADO"])}</div>', unsafe_allow_html=True)
+    c3.markdown(f'<div class="result-card"><b>Não Cadastrados</b><br>{len(df[df["grupo"] == "NAO_IDENTIFICADO"])}</div>', unsafe_allow_html=True)
 
     st.subheader("📥 Arquivos Prontos para o Thoth")
-    st.write("Baixe individualmente os arquivos que você precisa importar para o sistema.")
+    st.write("Cada arquivo baixado terá exatamente a estrutura: PRODUTO | 1 | 2 | 3 | 4 | TOTAL.")
     
     arquivos_gerados = gerar_arquivos_excel(df)
     
-    # Cria uma grade de botões bonitinha (2 botões por linha)
     cols = st.columns(2)
     for index, (nome_arquivo, dados_bytes) in enumerate(arquivos_gerados.items()):
         col = cols[index % 2]
@@ -413,4 +406,4 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR ARQUIVOS", use_container_width=Fals
             )
 
 else:
-    st.markdown('<div class="small-muted">O sistema agora vai separar e entregar um arquivo Excel de matriz para cada grupo e rede, conforme padrão do Thoth.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="small-muted">O leitor foi corrigido para ignorar "Pendências", não capturar números como nome, e exportar as planilhas exatas com colunas 1, 2, 3, 4 e TOTAL.</div>', unsafe_allow_html=True)
