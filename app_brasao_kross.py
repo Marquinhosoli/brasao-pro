@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Completa Thoth (Com Auto-Inserção de Produtos Novos)")
+st.write("Importação Completa Thoth (Auto-Inserção 100% Blindada)")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -32,7 +32,8 @@ files = st.file_uploader(
 
 # =========================
 # BASE DE CONVERSÃO REVISADA
-# Adicionados os itens faltantes e pesos revisados (ex: Manga Palmer)
+# Adicionados itens faltantes e pesos corrigidos.
+# Fator 1 significa que a quantidade original será mantida (Sem divisão).
 # =========================
 BASE_PRODUTOS = {
     # --- FRUTAS ---
@@ -47,7 +48,7 @@ BASE_PRODUTOS = {
     "FIGO ROXO DE MARCHI 300G": {"por_caixa": 1, "grupo": "FRUTAS"},
     "FRAMBOESA FRUTA 120G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
     "GOIABA NACIONAL VERMELHA KG": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "GRAVIOLA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
+    "GRAVIOLA KG": {"por_caixa": 1, "grupo": "FRUTAS"},
     "JATOBA FRUTA KG": {"por_caixa": 1, "grupo": "FRUTAS"},
     "KINKAN BANDEJA FRUTAMINA 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
     "KIWI IMPORTADO GRECIA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
@@ -58,8 +59,8 @@ BASE_PRODUTOS = {
     "MACA FUJI CAT 1 KG": {"por_caixa": 18, "grupo": "FRUTAS"},
     "MAMAO FORMOSA KG": {"por_caixa": 15, "grupo": "FRUTAS"},
     "MAMAOZINHO PAPAIA UNIDADE": {"por_caixa": 18, "grupo": "FRUTAS"},
-    "MANGA PALMER KG": {"por_caixa": 20, "grupo": "FRUTAS"}, # REVISADO
-    "MANGA TOMMY KG": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "MANGA PALMER KG": {"por_caixa": 1, "grupo": "FRUTAS"}, # Corrigido para 1 (Mantém original)
+    "MANGA TOMMY KG": {"por_caixa": 1, "grupo": "FRUTAS"}, # Corrigido para 1 (Mantém original)
     "MELAO CANTALOUPE UNIDADE": {"por_caixa": 6, "grupo": "FRUTAS"},
     "MELAO CHARANTEAIS KG": {"por_caixa": 10, "grupo": "FRUTAS"},
     "MELAO DINO KG": {"por_caixa": 10, "grupo": "FRUTAS"},
@@ -73,12 +74,12 @@ BASE_PRODUTOS = {
     "PERA WILLIANS ARGENTINA KG": {"por_caixa": 18, "grupo": "FRUTAS"},
     "PESSEGO IMP ARGENTINA POLPA AMARELA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
     "PHYSALIS IMPORTADO COLOMBIA 100G": {"por_caixa": 8, "grupo": "FRUTAS"},
+    "UVA THOMPSON S/SEMENTE DEMARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
     "UVA CRINSOM S/SEMENTE DEMARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
     "UVA VITORIA DE MARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
-    "UVA THOMPSON S/SEMENTE DEMARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
 
     # --- LEGUMES ---
-    "ABOBORA PESCOCO KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "ABOBORA PESCOCO KG": {"por_caixa": 1, "grupo": "LEGUMES"}, # Corrigido para 1
     "ALECRIM MACO": {"por_caixa": 4, "grupo": "LEGUMES"},
     "ALHO PORO UND": {"por_caixa": 12, "grupo": "LEGUMES"},
     "BATATA DOCE BRANCA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
@@ -92,7 +93,7 @@ BASE_PRODUTOS = {
     "CHUCHU KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "COENTRO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "ERVILHA TORTA BANDEJA DEMARCHI 200G": {"por_caixa": 10, "grupo": "LEGUMES"},
-    "GENGIBRE KG": {"por_caixa": 15, "grupo": "LEGUMES"},
+    "GENGIBRE KG": {"por_caixa": 1, "grupo": "LEGUMES"}, # Corrigido para 1 (Mantém original)
     "HORTELA MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "JILO DE MARCHI BDJ 300G": {"por_caixa": 12, "grupo": "LEGUMES"},
     "LOURO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
@@ -106,7 +107,6 @@ BASE_PRODUTOS = {
     "PIMENTA CAMBUCI KG": {"por_caixa": 1, "grupo": "LEGUMES"},
     "PIMENTA JALAPENO KG": {"por_caixa": 1, "grupo": "LEGUMES"},
     "PIMENTAO SORTIDO BANDEJA DE MARCHI 500G": {"por_caixa": 10, "grupo": "LEGUMES"},
-    "PIMENTAO VERMELHO BANDEJA DE MARCHI 300G": {"por_caixa": 10, "grupo": "LEGUMES"},
     "SALSAO AIPO UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
     "SALVIA UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
     "TOMATE GRAPE DEMARCHI 180G SHELF 10": {"por_caixa": 10, "grupo": "LEGUMES"},
@@ -145,27 +145,46 @@ configs = [
 # =========================
 # FUNÇÕES CORE
 # =========================
+def classificador_inteligente(nome_produto: str):
+    n = nome_produto.upper()
+    legumes_kw = ["TOMATE", "PIMENTAO", "PIMENTA", "JILO", "GENGIBRE", "ERVILHA", "BATATA", 
+                  "CENOURA", "CEBOLA", "ALHO", "ALFACE", "REPOLHO", "ABOBORA", "PEPINO", 
+                  "BERINJELA", "CHUCHU", "QUIABO", "VAGEM", "MILHO", "SALSA", "COENTRO", 
+                  "ALECRIM", "TOMILHO", "MANDIOCA", "INHAME", "HORTELA", "LOURO", "MANJERICAO"]
+    
+    for l in legumes_kw:
+        if l in n:
+            return "LEGUMES"
+            
+    # Se não identificar como legume, joga pra FRUTAS pra não ficar de fora.
+    return "FRUTAS"
+
 def identificar_loja(nome_arquivo: str):
+    """
+    Identificador permissivo: blindado contra erros de digitação como "fernado.pdf"
+    """
     n = nome_arquivo.upper()
-    if "KROSS" in n and "XAXIM" in n: return "KROSS", "2"
-    if "KROSS" in n: return "KROSS", "1"
+    if "KROSS" in n:
+        if "XAXIM" in n: return "KROSS", "2"
+        return "KROSS", "1"
     if "CD" in n: return "BRASAO CD", "1"
-    if "FERNANDO" in n: return "BRASAO", "1"
-    if "JARDIM" in n: return "BRASAO", "2"
+    
+    if "FERN" in n: return "BRASAO", "1" # Aceita FERNANDO, FERNADO, FERNA...
+    if "JARD" in n: return "BRASAO", "2"
     if "XAXIM" in n: return "BRASAO", "3"
-    if "AVENIDA" in n: return "BRASAO", "4"
-    return "OUTROS", "0"
+    if "AVEN" in n: return "BRASAO", "4"
+    
+    # Se o nome do PDF vier totalmente bizarro, assume Brasão Loja 1 pra não perder o dado
+    return "BRASAO", "1"
 
 def parse_linha_produto(linha: str):
     l = linha.strip()
-    
     if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR"]):
         return None
 
     m_flex = re.search(r"^(.*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
     if m_flex:
         descricao_bruta = m_flex.group(1).strip()
-        
         qtd_str = m_flex.group(2).replace(".", "").replace(",", ".")
         try:
             qtd = float(qtd_str)
@@ -176,7 +195,6 @@ def parse_linha_produto(linha: str):
         if not m_desc: return None
             
         produto = m_desc.group(0).upper()
-        
         m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
         unidade_encontrada = "cx" if m_un and m_un.group(1) in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"] else "outros"
         
@@ -185,7 +203,6 @@ def parse_linha_produto(linha: str):
                 produto = produto[:-len(m)].strip()
         
         return produto, qtd, unidade_encontrada
-
     return None
 
 def localizar_base(produto: str):
@@ -197,36 +214,18 @@ def localizar_base(produto: str):
             return chave, BASE_PRODUTOS[chave]
     return p, None
 
-def classificador_inteligente(nome_produto: str):
-    """
-    Se o produto não estiver na base, essa função tenta adivinhar se é Legume ou Fruta
-    para garantir que ele seja exportado para as planilhas do Thoth e não seja rejeitado.
-    """
-    n = nome_produto.upper()
-    legumes_kw = ["TOMATE", "PIMENTAO", "PIMENTA", "JILO", "GENGIBRE", "ERVILHA", "BATATA", 
-                  "CENOURA", "CEBOLA", "ALHO", "ALFACE", "REPOLHO", "ABOBORA", "PEPINO", 
-                  "BERINJELA", "CHUCHU", "QUIABO", "VAGEM", "MILHO", "SALSA", "COENTRO", 
-                  "ALECRIM", "TOMILHO", "MANDIOCA", "INHAME"]
-    
-    for l in legumes_kw:
-        if l in n:
-            return "LEGUMES"
-            
-    # Se não achar palavra-chave de legume, assume Fruta por padrão
-    return "FRUTAS"
-
 def converter_para_final(produto: str, quantidade_original: float, unidade_encontrada: str):
     nome_base, info = localizar_base(produto)
 
-    # ======= NOVIDADE: AUTO-INSERÇÃO DE PRODUTOS NOVOS =======
+    # ======= O CORAÇÃO DO AUTO-INSERIR =======
+    # Se o item for desconhecido, ele ganha um grupo adivinhado e é MANTIDO.
     if not info:
-        # Ao invés de jogar fora ("NAO_IDENTIFICADO"), ele assume o produto e joga na matriz!
         grupo_estimado = classificador_inteligente(produto)
         return {
             "produto_final": produto,
             "grupo": grupo_estimado,
             "qtd_original": quantidade_original,
-            "qtd_final": math.ceil(quantidade_original), # Sem divisor conhecido, mantém o valor
+            "qtd_final": math.ceil(quantidade_original), # Mantém original
             "observacao": "NOVO - AUTO INSERIDO"
         }
 
@@ -236,12 +235,12 @@ def converter_para_final(produto: str, quantidade_original: float, unidade_encon
     if unidade_encontrada == "cx":
         qtd_final = math.ceil(quantidade_original)
         obs = "Já em CX"
-    elif por_caixa and float(por_caixa) > 0:  
+    elif por_caixa and float(por_caixa) > 1:  
         qtd_final = math.ceil(quantidade_original / float(por_caixa))
         obs = f"Divisão por {por_caixa}"
     else:           
         qtd_final = math.ceil(quantidade_original)
-        obs = "Base = 1"
+        obs = "Fator 1 (Original)"
 
     return {
         "produto_final": nome_base,
@@ -334,17 +333,17 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # Como agora tudo é auto-inserido, a aba de erros vira um relatório de Aviso para o cliente.
     df_erros = df[df["observacao"] == "NOVO - AUTO INSERIDO"]
     if not df_erros.empty:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_erros[["produto_final", "qtd_original", "grupo", "arquivo"]].rename(columns={
-                "produto_final": "Produto Exportado Sem Conversão",
-                "qtd_original": "Quantidade (PDF)",
+            df_erros[["produto_final", "qtd_original", "grupo", "loja_cod", "arquivo"]].rename(columns={
+                "produto_final": "Produto Exportado (Novo/Desconhecido)",
+                "qtd_original": "Quantidade",
                 "grupo": "Grupo Adivinhado",
+                "loja_cod": "Loja Número",
                 "arquivo": "Arquivo PDF"
-            }).to_excel(writer, index=False, sheet_name="ITENS AUTO-INSERIDOS")
+            }).to_excel(writer, index=False, sheet_name="ITENS AUTO INSERIDOS")
         arquivos["RELATORIO_ITENS_NOVOS.xlsx"] = output.getvalue()
 
     return arquivos
@@ -362,4 +361,37 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
-            except Exception
+            except Exception as e:
+                st.error(f"Erro ao processar {f.name}: {e}")
+
+    if not todos_itens:
+        st.error("Nenhum item válido encontrado nos arquivos.")
+        st.stop()
+
+    df = pd.DataFrame(todos_itens)
+    st.success("Tudo pronto! Arquivos formatados no modelo exato do ERP.")
+
+    c1, c2, c3 = st.columns(3)
+    c1.markdown(f'<div class="result-card"><b>Arquivos Lidos</b><br>{len(files)}</div>', unsafe_allow_html=True)
+    
+    qtd_convertidos = len(df[df["observacao"] != "NOVO - AUTO INSERIDO"])
+    c2.markdown(f'<div class="result-card"><b>Itens Base</b><br>{qtd_convertidos}</div>', unsafe_allow_html=True)
+    
+    qtd_novos = len(df[df["observacao"] == "NOVO - AUTO INSERIDO"])
+    if qtd_novos > 0:
+        c3.markdown(f'<div class="result-card" style="border-left: 4px solid #ffb020;"><b>Itens Forçados (Exportados)</b><br>{qtd_novos}</div>', unsafe_allow_html=True)
+    else:
+        c3.markdown(f'<div class="result-card"><b>Itens Forçados</b><br>0</div>', unsafe_allow_html=True)
+
+    arquivos_gerados = gerar_arquivos_excel(df)
+    
+    cols = st.columns(2)
+    for index, (nome_arquivo, dados_bytes) in enumerate(arquivos_gerados.items()):
+        with cols[index % 2]:
+            st.download_button(
+                label=f"Baixar {nome_arquivo}",
+                data=dados_bytes,
+                file_name=nome_arquivo,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
