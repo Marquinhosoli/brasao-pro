@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Thoth (Pesos Auditados via ERP)")
+st.write("Importação Completa Thoth + Tabela de Preços e Códigos")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -31,7 +31,8 @@ files = st.file_uploader(
 )
 
 # =========================
-# BASE DE CONVERSÃO AUDITADA (Baseada nas Telas do ERP)
+# BASE DE CONVERSÃO REVISADA
+# Tomate Grape corrigido para fator 24.
 # =========================
 BASE_PRODUTOS = {
     # --- FRUTAS ---
@@ -43,22 +44,22 @@ BASE_PRODUTOS = {
     "CARAMBOLA DE MARCHI 400G": {"por_caixa": 4, "grupo": "FRUTAS"},
     "COCO SECO FRUTA KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "COCO VERDE UNIDADE": {"por_caixa": 1, "grupo": "FRUTAS"},
-    "FIGO ROXO DE MARCHI 300G": {"por_caixa": 30, "grupo": "FRUTAS"}, # Corrigido para 30
+    "FIGO ROXO DE MARCHI 300G": {"por_caixa": 1, "grupo": "FRUTAS"},
     "FRAMBOESA FRUTA 120G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
     "GOIABA NACIONAL VERMELHA KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "GRAVIOLA KG": {"por_caixa": 1, "grupo": "FRUTAS"},
     "JATOBA FRUTA KG": {"por_caixa": 1, "grupo": "FRUTAS"},
     "KINKAN BANDEJA FRUTAMINA 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
-    "KIWI IMPORTADO GRECIA KG": {"por_caixa": 20, "grupo": "FRUTAS"}, # Corrigido para 20
-    "KIWI NACIONAL DE MARCHI BANDEJA 600G SHELF 15": {"por_caixa": 20, "grupo": "FRUTAS"}, # Corrigido para 20
+    "KIWI IMPORTADO GRECIA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
+    "KIWI NACIONAL DE MARCHI BANDEJA 600G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
     "LARANJA MAQUINA DE SUCO": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "LIMAO SICILIANO KG": {"por_caixa": 15, "grupo": "FRUTAS"}, # Corrigido para 15
+    "LIMAO SICILIANO KG": {"por_caixa": 15, "grupo": "FRUTAS"},
     "LIMAO TAHITI KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "MACA FUJI CAT 1 KG": {"por_caixa": 18, "grupo": "FRUTAS"},
     "MAMAO FORMOSA KG": {"por_caixa": 15, "grupo": "FRUTAS"},
     "MAMAOZINHO PAPAIA UNIDADE": {"por_caixa": 18, "grupo": "FRUTAS"},
-    "MANGA PALMER KG": {"por_caixa": 20, "grupo": "FRUTAS"}, # Corrigido para 20
-    "MANGA TOMMY KG": {"por_caixa": 20, "grupo": "FRUTAS"}, # Corrigido para 20
+    "MANGA PALMER KG": {"por_caixa": 1, "grupo": "FRUTAS"},
+    "MANGA TOMMY KG": {"por_caixa": 1, "grupo": "FRUTAS"},
     "MELAO CANTALOUPE UNIDADE": {"por_caixa": 6, "grupo": "FRUTAS"},
     "MELAO CHARANTEAIS KG": {"por_caixa": 10, "grupo": "FRUTAS"},
     "MELAO DINO KG": {"por_caixa": 10, "grupo": "FRUTAS"},
@@ -77,8 +78,7 @@ BASE_PRODUTOS = {
     "UVA VITORIA DE MARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
 
     # --- LEGUMES ---
-    "ABOBORA KABOTIAN": {"por_caixa": 20, "grupo": "LEGUMES"},
-    "ABOBORA PESCOCO KG": {"por_caixa": 20, "grupo": "LEGUMES"}, 
+    "ABOBORA PESCOCO KG": {"por_caixa": 1, "grupo": "LEGUMES"}, 
     "ALECRIM MACO": {"por_caixa": 4, "grupo": "LEGUMES"},
     "ALHO PORO UND": {"por_caixa": 12, "grupo": "LEGUMES"},
     "BATATA DOCE BRANCA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
@@ -86,16 +86,14 @@ BASE_PRODUTOS = {
     "BATATA SALSA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "BERINJELA KG": {"por_caixa": 12, "grupo": "LEGUMES"},
     "BETERRABA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
-    "CARA KG": {"por_caixa": 20, "grupo": "LEGUMES"}, # Inserido
     "CEBOLA ARGENTINA BRANCA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "CEBOLA CONSERVA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "CENOURA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "CHUCHU KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "COENTRO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "ERVILHA TORTA BANDEJA DEMARCHI 200G": {"por_caixa": 10, "grupo": "LEGUMES"},
-    "GENGIBRE KG": {"por_caixa": 15, "grupo": "LEGUMES"}, # Corrigido para 15
+    "GENGIBRE KG": {"por_caixa": 1, "grupo": "LEGUMES"}, 
     "HORTELA MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
-    "INHAME KG": {"por_caixa": 20, "grupo": "LEGUMES"}, # Inserido
     "JILO DE MARCHI BDJ 300G": {"por_caixa": 12, "grupo": "LEGUMES"},
     "LOURO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "MANJERICAO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
@@ -104,16 +102,13 @@ BASE_PRODUTOS = {
     "MILHO VERDE ESPIGA DE MARCHI BDJ 700G SHELF 10": {"por_caixa": 10, "grupo": "LEGUMES"},
     "NABO UNIDADE": {"por_caixa": 6, "grupo": "LEGUMES"},
     "PEPINO JAPONES KG": {"por_caixa": 18, "grupo": "LEGUMES"},
-    "PIMENTA AMERICANA BANDEJA": {"por_caixa": 12, "grupo": "LEGUMES"}, # Inserido
     "PIMENTA BIQUINHO KG": {"por_caixa": 1, "grupo": "LEGUMES"},
     "PIMENTA CAMBUCI KG": {"por_caixa": 1, "grupo": "LEGUMES"},
     "PIMENTA JALAPENO KG": {"por_caixa": 1, "grupo": "LEGUMES"},
-    "PIMENTAO AMARELO BANDEJA": {"por_caixa": 10, "grupo": "LEGUMES"}, # Inserido
-    "PIMENTAO VERMELHO BANDEJA": {"por_caixa": 10, "grupo": "LEGUMES"}, # Inserido
     "PIMENTAO SORTIDO BANDEJA DE MARCHI 500G": {"por_caixa": 10, "grupo": "LEGUMES"},
     "SALSAO AIPO UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
     "SALVIA UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
-    "TOMATE GRAPE DEMARCHI 180G SHELF 10": {"por_caixa": 10, "grupo": "LEGUMES"},
+    "TOMATE GRAPE DEMARCHI 180G SHELF 10": {"por_caixa": 24, "grupo": "LEGUMES"}, # CORRIGIDO PARA 24!
     "TOMILHO MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
 }
 
@@ -181,10 +176,14 @@ def parse_linha_produto(linha: str):
     if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR"]):
         return None
 
-    m_flex = re.search(r"^(.*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
+    # Nova regex que agora também captura o CÓDIGO (group 1) e o PREÇO (group 6)
+    m_flex = re.search(r"^(?:(\d+)\s+)?(?:(\d+)\s+)?([A-Za-z].*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
     if m_flex:
-        descricao_bruta = m_flex.group(1).strip()
-        qtd_str = m_flex.group(2).replace(".", "").replace(",", ".")
+        codigo_produto = m_flex.group(1) or ""
+        descricao_bruta = m_flex.group(3).strip()
+        qtd_str = m_flex.group(5).replace(".", "").replace(",", ".")
+        preco_unitario = m_flex.group(6) # Capturando o preço
+        
         try:
             qtd = float(qtd_str)
         except ValueError:
@@ -201,7 +200,7 @@ def parse_linha_produto(linha: str):
             if produto.endswith(m):
                 produto = produto[:-len(m)].strip()
         
-        return produto, qtd, unidade_encontrada
+        return produto, qtd, unidade_encontrada, codigo_produto, preco_unitario
     return None
 
 def localizar_base(produto: str):
@@ -216,6 +215,7 @@ def localizar_base(produto: str):
 def converter_para_final(produto: str, quantidade_original: float, unidade_encontrada: str):
     nome_base, info = localizar_base(produto)
 
+    # AUTO-INSERIR INTACTO
     if not info:
         grupo_estimado = classificador_inteligente(produto)
         return {
@@ -269,11 +269,14 @@ def processar_arquivo(uploaded_file):
             
         item = parse_linha_produto(limpa)
         if item:
-            produto, qtd, unid = item
+            produto, qtd, unid, codigo, preco = item
             conv = converter_para_final(produto, qtd, unid)
             conv["cliente"] = cliente
             conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
+            # Novos campos salvos para a Tabela Krill
+            conv["codigo"] = codigo
+            conv["preco"] = preco
             itens.append(conv)
 
     return itens
@@ -312,6 +315,7 @@ def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
 def gerar_arquivos_excel(df):
     arquivos = {}
 
+    # 1. Gera as matrizes convencionais do Thoth
     for cliente, grupo, nome_arquivo, colunas, sup_head, sub_head in configs:
         df_gerado = gerar_planilha_thoth(df, cliente, grupo, colunas, sub_head)
         
@@ -330,18 +334,17 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    df_erros = df[df["observacao"] == "NOVO - AUTO INSERIDO"]
-    if not df_erros.empty:
+    # 2. Gera a NOVA Tabela de Preços e Códigos (Estilo Krill)
+    df_precos = df[["codigo", "produto_final", "preco"]].copy()
+    df_precos = df_precos[df_precos["codigo"] != ""] # Tira as linhas que por acaso não vieram com código
+    df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
+    df_precos.rename(columns={"codigo": "CÓDIGO", "produto_final": "DESCRIÇÃO", "preco": "PREÇO UNITÁRIO (R$)"}, inplace=True)
+
+    if not df_precos.empty:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_erros[["produto_final", "qtd_original", "grupo", "loja_cod", "arquivo"]].rename(columns={
-                "produto_final": "Produto Exportado (Novo/Desconhecido)",
-                "qtd_original": "Quantidade",
-                "grupo": "Grupo Adivinhado",
-                "loja_cod": "Loja Número",
-                "arquivo": "Arquivo PDF"
-            }).to_excel(writer, index=False, sheet_name="ITENS AUTO INSERIDOS")
-        arquivos["RELATORIO_ITENS_NOVOS.xlsx"] = output.getvalue()
+            df_precos.to_excel(writer, index=False, sheet_name="Tabela de Preços")
+        arquivos["TABELA_PRECOS_SISTEMA.xlsx"] = output.getvalue()
 
     return arquivos
 
@@ -375,20 +378,28 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
     c2.markdown(f'<div class="result-card"><b>Itens Base</b><br>{qtd_convertidos}</div>', unsafe_allow_html=True)
     
     qtd_novos = len(df[df["observacao"] == "NOVO - AUTO INSERIDO"])
-    if qtd_novos > 0:
-        c3.markdown(f'<div class="result-card" style="border-left: 4px solid #ffb020;"><b>Itens Forçados (Exportados)</b><br>{qtd_novos}</div>', unsafe_allow_html=True)
-    else:
-        c3.markdown(f'<div class="result-card"><b>Itens Forçados</b><br>0</div>', unsafe_allow_html=True)
+    c3.markdown(f'<div class="result-card"><b>Itens Forçados</b><br>{qtd_novos}</div>', unsafe_allow_html=True)
 
     arquivos_gerados = gerar_arquivos_excel(df)
     
     cols = st.columns(2)
     for index, (nome_arquivo, dados_bytes) in enumerate(arquivos_gerados.items()):
         with cols[index % 2]:
-            st.download_button(
-                label=f"Baixar {nome_arquivo}",
-                data=dados_bytes,
-                file_name=nome_arquivo,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
+            # Destaque visual caso seja o botão da nova tabela de preços
+            if nome_arquivo == "TABELA_PRECOS_SISTEMA.xlsx":
+                st.download_button(
+                    label=f"💰 Baixar {nome_arquivo}",
+                    data=dados_bytes,
+                    file_name=nome_arquivo,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    type="primary"
+                )
+            else:
+                st.download_button(
+                    label=f"Baixar {nome_arquivo}",
+                    data=dados_bytes,
+                    file_name=nome_arquivo,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
