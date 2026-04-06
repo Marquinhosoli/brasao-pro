@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Completa Thoth + Tabela de Preços e Códigos")
+st.write("Importação Completa Thoth + Tabela de Preços (Com Cód. Fornecedor)")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -92,7 +92,7 @@ BASE_PRODUTOS = {
     "CHUCHU KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "COENTRO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "ERVILHA TORTA BANDEJA DEMARCHI 200G": {"por_caixa": 10, "grupo": "LEGUMES"},
-    "GENGIBRE KG": {"por_caixa": 13, "grupo": "LEGUMES"}, # <-- AQUI! CORRIGIDO PARA 13
+    "GENGIBRE KG": {"por_caixa": 13, "grupo": "LEGUMES"},
     "HORTELA MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "JILO DE MARCHI BDJ 300G": {"por_caixa": 12, "grupo": "LEGUMES"},
     "LOURO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
@@ -176,9 +176,11 @@ def parse_linha_produto(linha: str):
     if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR"]):
         return None
 
+    # NOVIDADE: Agora a Expressão Regular captura também o "Cód. Fornecedor" se ele existir
     m_flex = re.search(r"^(?:(\d+)\s+)?(?:(\d+)\s+)?([A-Za-z].*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
     if m_flex:
         codigo_produto = m_flex.group(1) or ""
+        codigo_fornecedor = m_flex.group(2) or "" # Captura do Cod Forn
         descricao_bruta = m_flex.group(3).strip()
         qtd_str = m_flex.group(5).replace(".", "").replace(",", ".")
         preco_unitario = m_flex.group(6)
@@ -199,7 +201,8 @@ def parse_linha_produto(linha: str):
             if produto.endswith(m):
                 produto = produto[:-len(m)].strip()
         
-        return produto, qtd, unidade_encontrada, codigo_produto, preco_unitario
+        # Agora retorna 6 variáveis, incluindo o Código do Fornecedor
+        return produto, qtd, unidade_encontrada, codigo_produto, codigo_fornecedor, preco_unitario
     return None
 
 def localizar_base(produto: str):
@@ -268,12 +271,13 @@ def processar_arquivo(uploaded_file):
             
         item = parse_linha_produto(limpa)
         if item:
-            produto, qtd, unid, codigo, preco = item
+            produto, qtd, unid, codigo, cod_forn, preco = item
             conv = converter_para_final(produto, qtd, unid)
             conv["cliente"] = cliente
             conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
             conv["codigo"] = codigo
+            conv["cod_forn"] = cod_forn
             conv["preco"] = preco
             itens.append(conv)
 
@@ -331,11 +335,19 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # Tabela de Preços e Códigos (Estilo Krill)
-    df_precos = df[["codigo", "produto_final", "preco"]].copy()
-    df_precos = df_precos[df_precos["codigo"] != ""]
+    # NOVA Tabela de Preços e Códigos com o Código do Fornecedor incluído
+    df_precos = df[["codigo", "cod_forn", "produto_final", "preco"]].copy()
+    # Filtra para evitar linhas sem identificação
+    df_precos = df_precos[df_precos["produto_final"] != ""]
     df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
-    df_precos.rename(columns={"codigo": "CÓDIGO", "produto_final": "DESCRIÇÃO", "preco": "PREÇO UNITÁRIO (R$)"}, inplace=True)
+    
+    # Renomeação final das colunas
+    df_precos.rename(columns={
+        "codigo": "CÓDIGO", 
+        "cod_forn": "CÓD. FORNECEDOR",
+        "produto_final": "DESCRIÇÃO", 
+        "preco": "PREÇO UNITÁRIO (R$)"
+    }, inplace=True)
 
     if not df_precos.empty:
         output = io.BytesIO()
@@ -354,7 +366,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         st.stop()
 
     todos_itens = []
-    with st.spinner("Lendo PDFs, realizando Auto-Inserção e construindo planilhas..."):
+    with st.spinner("A processar pedidos, a realizar Auto-Inserção e a construir ficheiros..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
@@ -362,11 +374,11 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
                 st.error(f"Erro ao processar {f.name}: {e}")
 
     if not todos_itens:
-        st.error("Nenhum item válido encontrado nos arquivos.")
+        st.error("Nenhum item válido encontrado nos ficheiros.")
         st.stop()
 
     df = pd.DataFrame(todos_itens)
-    st.success("Tudo pronto! Arquivos formatados no modelo exato do ERP.")
+    st.success("Tudo pronto! Ficheiros formatados no modelo exato do ERP.")
 
     c1, c2, c3 = st.columns(3)
     c1.markdown(f'<div class="result-card"><b>Arquivos Lidos</b><br>{len(files)}</div>', unsafe_allow_html=True)
