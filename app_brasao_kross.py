@@ -32,7 +32,7 @@ files = st.file_uploader(
 
 # =========================
 # BASE DE CONVERSÃO REVISADA
-# Tomate Grape corrigido para fator 24.
+# Gengibre corrigido para fator 13. Mangas corrigidas para 20.
 # =========================
 BASE_PRODUTOS = {
     # --- FRUTAS ---
@@ -58,8 +58,8 @@ BASE_PRODUTOS = {
     "MACA FUJI CAT 1 KG": {"por_caixa": 18, "grupo": "FRUTAS"},
     "MAMAO FORMOSA KG": {"por_caixa": 15, "grupo": "FRUTAS"},
     "MAMAOZINHO PAPAIA UNIDADE": {"por_caixa": 18, "grupo": "FRUTAS"},
-    "MANGA PALMER KG": {"por_caixa": 1, "grupo": "FRUTAS"},
-    "MANGA TOMMY KG": {"por_caixa": 1, "grupo": "FRUTAS"},
+    "MANGA PALMER KG": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "MANGA TOMMY KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "MELAO CANTALOUPE UNIDADE": {"por_caixa": 6, "grupo": "FRUTAS"},
     "MELAO CHARANTEAIS KG": {"por_caixa": 10, "grupo": "FRUTAS"},
     "MELAO DINO KG": {"por_caixa": 10, "grupo": "FRUTAS"},
@@ -92,7 +92,7 @@ BASE_PRODUTOS = {
     "CHUCHU KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "COENTRO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "ERVILHA TORTA BANDEJA DEMARCHI 200G": {"por_caixa": 10, "grupo": "LEGUMES"},
-    "GENGIBRE KG": {"por_caixa": 1, "grupo": "LEGUMES"}, 
+    "GENGIBRE KG": {"por_caixa": 13, "grupo": "LEGUMES"}, # <-- AQUI! CORRIGIDO PARA 13
     "HORTELA MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "JILO DE MARCHI BDJ 300G": {"por_caixa": 12, "grupo": "LEGUMES"},
     "LOURO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
@@ -108,7 +108,7 @@ BASE_PRODUTOS = {
     "PIMENTAO SORTIDO BANDEJA DE MARCHI 500G": {"por_caixa": 10, "grupo": "LEGUMES"},
     "SALSAO AIPO UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
     "SALVIA UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
-    "TOMATE GRAPE DEMARCHI 180G SHELF 10": {"por_caixa": 24, "grupo": "LEGUMES"}, # CORRIGIDO PARA 24!
+    "TOMATE GRAPE DEMARCHI 180G SHELF 10": {"por_caixa": 24, "grupo": "LEGUMES"},
     "TOMILHO MACO": {"por_caixa": 1, "grupo": "LEGUMES"},
 }
 
@@ -176,13 +176,12 @@ def parse_linha_produto(linha: str):
     if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR"]):
         return None
 
-    # Nova regex que agora também captura o CÓDIGO (group 1) e o PREÇO (group 6)
     m_flex = re.search(r"^(?:(\d+)\s+)?(?:(\d+)\s+)?([A-Za-z].*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
     if m_flex:
         codigo_produto = m_flex.group(1) or ""
         descricao_bruta = m_flex.group(3).strip()
         qtd_str = m_flex.group(5).replace(".", "").replace(",", ".")
-        preco_unitario = m_flex.group(6) # Capturando o preço
+        preco_unitario = m_flex.group(6)
         
         try:
             qtd = float(qtd_str)
@@ -274,7 +273,6 @@ def processar_arquivo(uploaded_file):
             conv["cliente"] = cliente
             conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
-            # Novos campos salvos para a Tabela Krill
             conv["codigo"] = codigo
             conv["preco"] = preco
             itens.append(conv)
@@ -315,7 +313,6 @@ def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
 def gerar_arquivos_excel(df):
     arquivos = {}
 
-    # 1. Gera as matrizes convencionais do Thoth
     for cliente, grupo, nome_arquivo, colunas, sup_head, sub_head in configs:
         df_gerado = gerar_planilha_thoth(df, cliente, grupo, colunas, sub_head)
         
@@ -334,9 +331,9 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # 2. Gera a NOVA Tabela de Preços e Códigos (Estilo Krill)
+    # Tabela de Preços e Códigos (Estilo Krill)
     df_precos = df[["codigo", "produto_final", "preco"]].copy()
-    df_precos = df_precos[df_precos["codigo"] != ""] # Tira as linhas que por acaso não vieram com código
+    df_precos = df_precos[df_precos["codigo"] != ""]
     df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
     df_precos.rename(columns={"codigo": "CÓDIGO", "produto_final": "DESCRIÇÃO", "preco": "PREÇO UNITÁRIO (R$)"}, inplace=True)
 
@@ -385,7 +382,6 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
     cols = st.columns(2)
     for index, (nome_arquivo, dados_bytes) in enumerate(arquivos_gerados.items()):
         with cols[index % 2]:
-            # Destaque visual caso seja o botão da nova tabela de preços
             if nome_arquivo == "TABELA_PRECOS_SISTEMA.xlsx":
                 st.download_button(
                     label=f"💰 Baixar {nome_arquivo}",
