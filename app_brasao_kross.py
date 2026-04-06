@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Completa Thoth (Auto-Inserção 100% Blindada)")
+st.write("Importação Thoth (Pesos Auditados via ERP)")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -31,9 +31,7 @@ files = st.file_uploader(
 )
 
 # =========================
-# BASE DE CONVERSÃO REVISADA
-# Adicionados itens faltantes e pesos corrigidos.
-# Fator 1 significa que a quantidade original será mantida (Sem divisão).
+# BASE DE CONVERSÃO AUDITADA (Baseada nas Telas do ERP)
 # =========================
 BASE_PRODUTOS = {
     # --- FRUTAS ---
@@ -45,22 +43,22 @@ BASE_PRODUTOS = {
     "CARAMBOLA DE MARCHI 400G": {"por_caixa": 4, "grupo": "FRUTAS"},
     "COCO SECO FRUTA KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "COCO VERDE UNIDADE": {"por_caixa": 1, "grupo": "FRUTAS"},
-    "FIGO ROXO DE MARCHI 300G": {"por_caixa": 1, "grupo": "FRUTAS"},
+    "FIGO ROXO DE MARCHI 300G": {"por_caixa": 30, "grupo": "FRUTAS"}, # Corrigido para 30
     "FRAMBOESA FRUTA 120G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
     "GOIABA NACIONAL VERMELHA KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "GRAVIOLA KG": {"por_caixa": 1, "grupo": "FRUTAS"},
     "JATOBA FRUTA KG": {"por_caixa": 1, "grupo": "FRUTAS"},
     "KINKAN BANDEJA FRUTAMINA 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
-    "KIWI IMPORTADO GRECIA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
-    "KIWI NACIONAL DE MARCHI BANDEJA 600G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
+    "KIWI IMPORTADO GRECIA KG": {"por_caixa": 20, "grupo": "FRUTAS"}, # Corrigido para 20
+    "KIWI NACIONAL DE MARCHI BANDEJA 600G SHELF 15": {"por_caixa": 20, "grupo": "FRUTAS"}, # Corrigido para 20
     "LARANJA MAQUINA DE SUCO": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "LIMAO SICILIANO KG": {"por_caixa": 15, "grupo": "FRUTAS"},
+    "LIMAO SICILIANO KG": {"por_caixa": 15, "grupo": "FRUTAS"}, # Corrigido para 15
     "LIMAO TAHITI KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "MACA FUJI CAT 1 KG": {"por_caixa": 18, "grupo": "FRUTAS"},
     "MAMAO FORMOSA KG": {"por_caixa": 15, "grupo": "FRUTAS"},
     "MAMAOZINHO PAPAIA UNIDADE": {"por_caixa": 18, "grupo": "FRUTAS"},
-    "MANGA PALMER KG": {"por_caixa": 1, "grupo": "FRUTAS"}, # Corrigido para 1 (Mantém original)
-    "MANGA TOMMY KG": {"por_caixa": 1, "grupo": "FRUTAS"}, # Corrigido para 1 (Mantém original)
+    "MANGA PALMER KG": {"por_caixa": 20, "grupo": "FRUTAS"}, # Corrigido para 20
+    "MANGA TOMMY KG": {"por_caixa": 20, "grupo": "FRUTAS"}, # Corrigido para 20
     "MELAO CANTALOUPE UNIDADE": {"por_caixa": 6, "grupo": "FRUTAS"},
     "MELAO CHARANTEAIS KG": {"por_caixa": 10, "grupo": "FRUTAS"},
     "MELAO DINO KG": {"por_caixa": 10, "grupo": "FRUTAS"},
@@ -79,7 +77,8 @@ BASE_PRODUTOS = {
     "UVA VITORIA DE MARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
 
     # --- LEGUMES ---
-    "ABOBORA PESCOCO KG": {"por_caixa": 1, "grupo": "LEGUMES"}, # Corrigido para 1
+    "ABOBORA KABOTIAN": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "ABOBORA PESCOCO KG": {"por_caixa": 20, "grupo": "LEGUMES"}, 
     "ALECRIM MACO": {"por_caixa": 4, "grupo": "LEGUMES"},
     "ALHO PORO UND": {"por_caixa": 12, "grupo": "LEGUMES"},
     "BATATA DOCE BRANCA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
@@ -87,14 +86,16 @@ BASE_PRODUTOS = {
     "BATATA SALSA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "BERINJELA KG": {"por_caixa": 12, "grupo": "LEGUMES"},
     "BETERRABA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
+    "CARA KG": {"por_caixa": 20, "grupo": "LEGUMES"}, # Inserido
     "CEBOLA ARGENTINA BRANCA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "CEBOLA CONSERVA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "CENOURA KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "CHUCHU KG": {"por_caixa": 20, "grupo": "LEGUMES"},
     "COENTRO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "ERVILHA TORTA BANDEJA DEMARCHI 200G": {"por_caixa": 10, "grupo": "LEGUMES"},
-    "GENGIBRE KG": {"por_caixa": 1, "grupo": "LEGUMES"}, # Corrigido para 1 (Mantém original)
+    "GENGIBRE KG": {"por_caixa": 15, "grupo": "LEGUMES"}, # Corrigido para 15
     "HORTELA MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
+    "INHAME KG": {"por_caixa": 20, "grupo": "LEGUMES"}, # Inserido
     "JILO DE MARCHI BDJ 300G": {"por_caixa": 12, "grupo": "LEGUMES"},
     "LOURO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
     "MANJERICAO MACO": {"por_caixa": 10, "grupo": "LEGUMES"},
@@ -103,9 +104,12 @@ BASE_PRODUTOS = {
     "MILHO VERDE ESPIGA DE MARCHI BDJ 700G SHELF 10": {"por_caixa": 10, "grupo": "LEGUMES"},
     "NABO UNIDADE": {"por_caixa": 6, "grupo": "LEGUMES"},
     "PEPINO JAPONES KG": {"por_caixa": 18, "grupo": "LEGUMES"},
+    "PIMENTA AMERICANA BANDEJA": {"por_caixa": 12, "grupo": "LEGUMES"}, # Inserido
     "PIMENTA BIQUINHO KG": {"por_caixa": 1, "grupo": "LEGUMES"},
     "PIMENTA CAMBUCI KG": {"por_caixa": 1, "grupo": "LEGUMES"},
     "PIMENTA JALAPENO KG": {"por_caixa": 1, "grupo": "LEGUMES"},
+    "PIMENTAO AMARELO BANDEJA": {"por_caixa": 10, "grupo": "LEGUMES"}, # Inserido
+    "PIMENTAO VERMELHO BANDEJA": {"por_caixa": 10, "grupo": "LEGUMES"}, # Inserido
     "PIMENTAO SORTIDO BANDEJA DE MARCHI 500G": {"por_caixa": 10, "grupo": "LEGUMES"},
     "SALSAO AIPO UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
     "SALVIA UNIDADE": {"por_caixa": 1, "grupo": "LEGUMES"},
@@ -150,31 +154,26 @@ def classificador_inteligente(nome_produto: str):
     legumes_kw = ["TOMATE", "PIMENTAO", "PIMENTA", "JILO", "GENGIBRE", "ERVILHA", "BATATA", 
                   "CENOURA", "CEBOLA", "ALHO", "ALFACE", "REPOLHO", "ABOBORA", "PEPINO", 
                   "BERINJELA", "CHUCHU", "QUIABO", "VAGEM", "MILHO", "SALSA", "COENTRO", 
-                  "ALECRIM", "TOMILHO", "MANDIOCA", "INHAME", "HORTELA", "LOURO", "MANJERICAO"]
+                  "ALECRIM", "TOMILHO", "MANDIOCA", "INHAME", "HORTELA", "LOURO", "MANJERICAO", "CARA"]
     
     for l in legumes_kw:
         if l in n:
             return "LEGUMES"
             
-    # Se não identificar como legume, joga pra FRUTAS pra não ficar de fora.
     return "FRUTAS"
 
 def identificar_loja(nome_arquivo: str):
-    """
-    Identificador permissivo: blindado contra erros de digitação como "fernado.pdf"
-    """
     n = nome_arquivo.upper()
     if "KROSS" in n:
         if "XAXIM" in n: return "KROSS", "2"
         return "KROSS", "1"
     if "CD" in n: return "BRASAO CD", "1"
     
-    if "FERN" in n: return "BRASAO", "1" # Aceita FERNANDO, FERNADO, FERNA...
+    if "FERN" in n: return "BRASAO", "1" 
     if "JARD" in n: return "BRASAO", "2"
     if "XAXIM" in n: return "BRASAO", "3"
     if "AVEN" in n: return "BRASAO", "4"
     
-    # Se o nome do PDF vier totalmente bizarro, assume Brasão Loja 1 pra não perder o dado
     return "BRASAO", "1"
 
 def parse_linha_produto(linha: str):
@@ -217,15 +216,13 @@ def localizar_base(produto: str):
 def converter_para_final(produto: str, quantidade_original: float, unidade_encontrada: str):
     nome_base, info = localizar_base(produto)
 
-    # ======= O CORAÇÃO DO AUTO-INSERIR =======
-    # Se o item for desconhecido, ele ganha um grupo adivinhado e é MANTIDO.
     if not info:
         grupo_estimado = classificador_inteligente(produto)
         return {
             "produto_final": produto,
             "grupo": grupo_estimado,
             "qtd_original": quantidade_original,
-            "qtd_final": math.ceil(quantidade_original), # Mantém original
+            "qtd_final": math.ceil(quantidade_original),
             "observacao": "NOVO - AUTO INSERIDO"
         }
 
