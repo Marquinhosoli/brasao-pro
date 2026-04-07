@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Thoth + Correção de Códigos Complexos e Tabela de Preços")
+st.write("Importação Thoth + Tabela de Preços (Conversão Decimal Blindada)")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -32,7 +32,6 @@ files = st.file_uploader(
 
 # =========================
 # BASE DE CONVERSÃO REVISADA
-# Limões e Laranjas blindados contra variações de nome
 # =========================
 BASE_PRODUTOS = {
     # --- FRUTAS ---
@@ -150,8 +149,26 @@ configs = [
 ]
 
 # =========================
-# FUNÇÕES CORE
+# FUNÇÕES MATEMÁTICAS E DE LIMPEZA
 # =========================
+def parse_br_float(val_str: str) -> float:
+    """
+    Função matemática blindada contra falhas do Leitor de PDF (OCR).
+    Se o PDF ler 3,9000 ou 3.9000, ele converte perfeitamente para 3.9 reais.
+    """
+    v = val_str.strip()
+    if not ('.' in v or ',' in v):
+        return float(v)
+    
+    last_dot = v.rfind('.')
+    last_comma = v.rfind(',')
+    last_sep = max(last_dot, last_comma)
+    
+    int_part = v[:last_sep].replace('.', '').replace(',', '')
+    dec_part = v[last_sep+1:]
+    
+    return float(f"{int_part}.{dec_part}")
+
 def normalizar_nome(texto: str) -> str:
     if not texto: return ""
     t = str(texto).upper().strip()
@@ -159,6 +176,8 @@ def normalizar_nome(texto: str) -> str:
     t = t.replace("Ç", "C").replace("Ã", "A").replace("Á", "A").replace("À", "A")
     t = t.replace("É", "E").replace("Ê", "E").replace("Í", "I")
     t = t.replace("Ó", "O").replace("Õ", "O").replace("Ô", "O").replace("Ú", "U")
+    
+    # Correções de OCR
     t = t.replace("SHELL", "SHELF")
     t = t.replace("PESSEGA", "PESSEGO")
     t = t.replace("CONSENA", "CONSERVA")
@@ -183,6 +202,7 @@ def identificar_loja(nome_arquivo: str):
         if "XAXIM" in n: return "KROSS", "2"
         return "KROSS", "1"
     if "CD" in n: return "BRASAO CD", "1"
+    
     if "FERN" in n: return "BRASAO", "1" 
     if "JARD" in n: return "BRASAO", "2"
     if "XAXIM" in n: return "BRASAO", "3"
@@ -194,19 +214,17 @@ def parse_linha_produto(linha: str):
     if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR"]):
         return None
 
-    # NOVIDADE DA REGEX: Agora aceita pontos e traços no Código do Fornecedor (ex: 347.909)
+    # Captura a linha separando as colunas corretamente
     m_flex = re.search(r"^(?:([\d.-]+)\s+)?(?:([\d.-]+)\s+)?([A-Za-z].*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
-    
     if m_flex:
         codigo_produto = m_flex.group(1) or ""
-        codigo_fornecedor = m_flex.group(2) or "" # Agora captura o Limão Siciliano com "347.909"
+        codigo_fornecedor = m_flex.group(2) or "" 
         descricao_bruta = m_flex.group(3).strip()
-        qtd_str = m_flex.group(5).replace(".", "").replace(",", ".")
-        preco_unitario_str = m_flex.group(6).replace(".", "").replace(",", ".")
         
+        # Parse seguro de Decimais
         try:
-            qtd = float(qtd_str)
-            preco_float = float(preco_unitario_str)
+            qtd = parse_br_float(m_flex.group(5))
+            preco_float = parse_br_float(m_flex.group(6))
         except ValueError:
             return None
             
@@ -214,6 +232,7 @@ def parse_linha_produto(linha: str):
         if not m_desc: return None
             
         produto = normalizar_nome(m_desc.group(0))
+        
         m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
         unidade_encontrada = "cx" if m_un and m_un.group(1) in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"] else "outros"
         
@@ -243,6 +262,7 @@ def localizar_base(produto: str):
 def converter_para_final(produto: str, quantidade_original: float, unidade_encontrada: str):
     nome_base, info = localizar_base(produto)
 
+    # AUTO-INSERIR INTACTO
     if not info:
         grupo_estimado = classificador_inteligente(produto)
         return {
@@ -309,7 +329,7 @@ def processar_arquivo(uploaded_file):
     return itens
 
 # =========================
-# GERAÇÃO THOTH EXCEL E TABELA PREÇOS
+# GERAÇÃO THOTH EXCEL E PREÇOS
 # =========================
 def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
     df_filtro = df_itens[(df_itens["cliente"] == cliente) & (df_itens["grupo"] == grupo)]
@@ -360,6 +380,7 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
+    # Tabela de Preços e Códigos com Preço Decimal Exato
     df_precos = df[["codigo", "cod_forn", "produto_final", "preco"]].copy()
     df_precos = df_precos[df_precos["produto_final"] != ""]
     df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
@@ -388,7 +409,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         st.stop()
 
     todos_itens = []
-    with st.spinner("A processar pedidos, corrigindo nomes e códigos..."):
+    with st.spinner("A processar pedidos, validando OCR e preços..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
