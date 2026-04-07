@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Motor Splitter + Limpeza Brutal de Códigos e Tabela Krill")
+st.write("Motor Anti-Falhas + Tabela Krill Inteligente (Código Garantido)")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -217,7 +217,6 @@ def parse_linha_produto(linha: str):
     codigo_produto = ""
     codigo_fornecedor = ""
     
-    # Extrai códigos iniciais da lista de tokens
     while len(restante) > 0 and re.match(r"^[\d.-]+$", restante[0]):
         if not codigo_produto:
             codigo_produto = restante.pop(0)
@@ -229,9 +228,7 @@ def parse_linha_produto(linha: str):
     descricao_bruta = " ".join(restante)
     produto = normalizar_nome(descricao_bruta)
     
-    # A SOLUÇÃO NUKE (Laser Anti-Lixo):
-    # Arranca forçadamente qualquer número, código ou lixo não-alfabético do INÍCIO do nome.
-    # Ex: "131393 ABACATE KG" -> "ABACATE KG"
+    # Limpeza absoluta do nome: Arranca números perdidos no início do nome
     produto = re.sub(r"^[\W\d_]+", "", produto).strip()
     
     m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
@@ -326,7 +323,8 @@ def processar_arquivo(uploaded_file):
             conv["cliente"] = cliente
             conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
-            conv["cod_forn"] = cod_forn # Exportamos o Cod Fornecedor para a tabela
+            conv["codigo"] = codigo
+            conv["cod_forn"] = cod_forn
             conv["preco"] = preco
             itens.append(conv)
 
@@ -384,20 +382,26 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # 2. TABELAS DE PREÇOS (Descartando o CÓDIGO interno, mantendo apenas CÓD FORNECEDOR)
+    # ========================================================
+    # A SOLUÇÃO DEFINITIVA DA TABELA DE PREÇOS (CÓDIGO GARANTIDO)
+    # ========================================================
     for cliente in df["cliente"].unique():
         if cliente == "OUTROS": continue
         
-        df_cli = df[df["cliente"] == cliente]
+        df_cli = df[df["cliente"] == cliente].copy()
         
-        # Note que a coluna 'codigo' foi totalmente removida!
-        df_precos = df_cli[["cod_forn", "produto_final", "preco"]].copy()
+        # O "Plano B": Se não existir o Cod Forn, preenche usando o Código Interno
+        df_cli["codigo_final"] = df_cli.apply(
+            lambda x: x["cod_forn"] if x["cod_forn"] else x["codigo"], axis=1
+        )
+        
+        df_precos = df_cli[["codigo_final", "produto_final", "preco"]].copy()
         df_precos = df_precos[df_precos["produto_final"] != ""]
         
         df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
         
         df_precos.rename(columns={
-            "cod_forn": "CÓD. FORNECEDOR",
+            "codigo_final": "CÓD. FORNECEDOR",
             "produto_final": "DESCRIÇÃO", 
             "preco": "PREÇO UNITÁRIO (R$)"
         }, inplace=True)
@@ -421,7 +425,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         st.stop()
 
     todos_itens = []
-    with st.spinner("Limpando códigos das descrições e cruzando com a base..."):
+    with st.spinner("Extraindo Códigos e Validando Matrizes..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
