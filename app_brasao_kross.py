@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Motor Splitter (Anti-Falhas) + Tabelas de Preços (Apenas Cód. Fornecedor)")
+st.write("Motor Splitter + Limpeza Brutal de Códigos e Tabela Krill")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -148,14 +148,11 @@ def parse_br_float(val_str: str) -> float:
         v = str(val_str).strip()
         if not ('.' in v or ',' in v):
             return float(v)
-        
         last_dot = v.rfind('.')
         last_comma = v.rfind(',')
         last_sep = max(last_dot, last_comma)
-        
         int_part = v[:last_sep].replace('.', '').replace(',', '')
         dec_part = v[last_sep+1:]
-        
         return float(f"{int_part}.{dec_part}")
     except Exception:
         return 0.0
@@ -167,7 +164,6 @@ def normalizar_nome(texto: str) -> str:
     t = t.replace("Ç", "C").replace("Ã", "A").replace("Á", "A").replace("À", "A")
     t = t.replace("É", "E").replace("Ê", "E").replace("Í", "I")
     t = t.replace("Ó", "O").replace("Õ", "O").replace("Ô", "O").replace("Ú", "U")
-    
     t = t.replace("SHELL", "SHELF")
     t = t.replace("PESSEGA", "PESSEGO")
     t = t.replace("CONSENA", "CONSERVA")
@@ -192,7 +188,6 @@ def identificar_loja(nome_arquivo: str):
         if "XAXIM" in n: return "KROSS", "2"
         return "KROSS", "1"
     if "CD" in n: return "BRASAO CD", "1"
-    
     if "FERN" in n: return "BRASAO", "1" 
     if "JARD" in n: return "BRASAO", "2"
     if "XAXIM" in n: return "BRASAO", "3"
@@ -200,7 +195,7 @@ def identificar_loja(nome_arquivo: str):
     return "BRASAO", "1"
 
 # =======================================================
-# MOTOR "SPLITTER" (Imune a espaçamento falho no PDF)
+# MOTOR "SPLITTER"
 # =======================================================
 def parse_linha_produto(linha: str):
     l = linha.strip()
@@ -222,18 +217,23 @@ def parse_linha_produto(linha: str):
     codigo_produto = ""
     codigo_fornecedor = ""
     
-    if re.match(r"^[\d.-]+$", restante[0]):
-        codigo_produto = restante[0]
-        restante = restante[1:]
-        
-        if len(restante) > 0 and re.match(r"^[\d.-]+$", restante[0]):
-            codigo_fornecedor = restante[0]
-            restante = restante[1:]
+    # Extrai códigos iniciais da lista de tokens
+    while len(restante) > 0 and re.match(r"^[\d.-]+$", restante[0]):
+        if not codigo_produto:
+            codigo_produto = restante.pop(0)
+        elif not codigo_fornecedor:
+            codigo_fornecedor = restante.pop(0)
+        else:
+            restante.pop(0)
             
     descricao_bruta = " ".join(restante)
-    if not descricao_bruta: return None
-        
     produto = normalizar_nome(descricao_bruta)
+    
+    # A SOLUÇÃO NUKE (Laser Anti-Lixo):
+    # Arranca forçadamente qualquer número, código ou lixo não-alfabético do INÍCIO do nome.
+    # Ex: "131393 ABACATE KG" -> "ABACATE KG"
+    produto = re.sub(r"^[\W\d_]+", "", produto).strip()
+    
     m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
     unidade_encontrada = "cx" if m_un and m_un.group(1) in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"] else "outros"
     
@@ -326,8 +326,7 @@ def processar_arquivo(uploaded_file):
             conv["cliente"] = cliente
             conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
-            conv["codigo"] = codigo
-            conv["cod_forn"] = cod_forn
+            conv["cod_forn"] = cod_forn # Exportamos o Cod Fornecedor para a tabela
             conv["preco"] = preco
             itens.append(conv)
 
@@ -367,7 +366,6 @@ def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
 def gerar_arquivos_excel(df):
     arquivos = {}
 
-    # 1. Matrizes Oficiais Thoth
     for cliente, grupo, nome_arquivo, colunas, sup_head, sub_head in configs:
         df_gerado = gerar_planilha_thoth(df, cliente, grupo, colunas, sub_head)
         
@@ -386,13 +384,13 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # 2. TABELAS DE PREÇOS INDEPENDENTES POR REDE (Apenas Cód. Fornecedor)
+    # 2. TABELAS DE PREÇOS (Descartando o CÓDIGO interno, mantendo apenas CÓD FORNECEDOR)
     for cliente in df["cliente"].unique():
         if cliente == "OUTROS": continue
         
         df_cli = df[df["cliente"] == cliente]
         
-        # Filtramos apenas as colunas desejadas (removendo "codigo" interno)
+        # Note que a coluna 'codigo' foi totalmente removida!
         df_precos = df_cli[["cod_forn", "produto_final", "preco"]].copy()
         df_precos = df_precos[df_precos["produto_final"] != ""]
         
@@ -423,7 +421,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         st.stop()
 
     todos_itens = []
-    with st.spinner("A processar pedidos com o Motor Splitter Anti-Falhas..."):
+    with st.spinner("Limpando códigos das descrições e cruzando com a base..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
@@ -437,7 +435,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
     df = pd.DataFrame(todos_itens)
     
     with st.expander("🛠️ DEPURADOR DE PEDIDOS (Clique aqui para ver os dados brutos lidos)"):
-        st.write("Verifique se as quantidades e lojas estão corretas:")
+        st.write("Verifique se as descrições estão limpas e as lojas corretas:")
         st.dataframe(df[["arquivo", "produto_final", "qtd_original", "qtd_final", "preco"]].sort_values(by="arquivo"), use_container_width=True)
 
     st.success("Tudo pronto! Ficheiros formatados no modelo exato do ERP.")
