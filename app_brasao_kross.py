@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Thoth + Tabela de Preços (Conversão Decimal Blindada)")
+st.write("Importação Thoth + Modo Depurador e Prevenção de Falhas")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -51,17 +51,9 @@ BASE_PRODUTOS = {
     "KINKAN BANDEJA FRUTAMINA 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
     "KIWI IMPORTADO GRECIA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
     "KIWI NACIONAL DE MARCHI BANDEJA 600G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
-    
     "LARANJA MAQUINA DE SUCO": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "LARANJA PERA": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "LARANJA LIMA": {"por_caixa": 20, "grupo": "FRUTAS"},
-    
     "LIMAO SICILIANO KG": {"por_caixa": 15, "grupo": "FRUTAS"},
-    "LIMAO SICILIANO": {"por_caixa": 15, "grupo": "FRUTAS"},
     "LIMAO TAHITI KG": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "LIMAO TAHITI": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "LIMAO TAITI": {"por_caixa": 20, "grupo": "FRUTAS"},
-    
     "MACA FUJI CAT 1 KG": {"por_caixa": 18, "grupo": "FRUTAS"},
     "MAMAO FORMOSA KG": {"por_caixa": 15, "grupo": "FRUTAS"},
     "MAMAOZINHO PAPAIA UNIDADE": {"por_caixa": 18, "grupo": "FRUTAS"},
@@ -152,22 +144,22 @@ configs = [
 # FUNÇÕES MATEMÁTICAS E DE LIMPEZA
 # =========================
 def parse_br_float(val_str: str) -> float:
-    """
-    Função matemática blindada contra falhas do Leitor de PDF (OCR).
-    Se o PDF ler 3,9000 ou 3.9000, ele converte perfeitamente para 3.9 reais.
-    """
-    v = val_str.strip()
-    if not ('.' in v or ',' in v):
-        return float(v)
-    
-    last_dot = v.rfind('.')
-    last_comma = v.rfind(',')
-    last_sep = max(last_dot, last_comma)
-    
-    int_part = v[:last_sep].replace('.', '').replace(',', '')
-    dec_part = v[last_sep+1:]
-    
-    return float(f"{int_part}.{dec_part}")
+    """ Função matemática blindada com try-except contra quebras de OCR """
+    try:
+        v = str(val_str).strip()
+        if not ('.' in v or ',' in v):
+            return float(v)
+        
+        last_dot = v.rfind('.')
+        last_comma = v.rfind(',')
+        last_sep = max(last_dot, last_comma)
+        
+        int_part = v[:last_sep].replace('.', '').replace(',', '')
+        dec_part = v[last_sep+1:]
+        
+        return float(f"{int_part}.{dec_part}")
+    except Exception:
+        return 0.0 # Se o PDF enviar lixo puro, devolve zero para não quebrar a importação
 
 def normalizar_nome(texto: str) -> str:
     if not texto: return ""
@@ -177,7 +169,6 @@ def normalizar_nome(texto: str) -> str:
     t = t.replace("É", "E").replace("Ê", "E").replace("Í", "I")
     t = t.replace("Ó", "O").replace("Õ", "O").replace("Ô", "O").replace("Ú", "U")
     
-    # Correções de OCR
     t = t.replace("SHELL", "SHELF")
     t = t.replace("PESSEGA", "PESSEGO")
     t = t.replace("CONSENA", "CONSERVA")
@@ -214,19 +205,14 @@ def parse_linha_produto(linha: str):
     if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR"]):
         return None
 
-    # Captura a linha separando as colunas corretamente
     m_flex = re.search(r"^(?:([\d.-]+)\s+)?(?:([\d.-]+)\s+)?([A-Za-z].*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
     if m_flex:
         codigo_produto = m_flex.group(1) or ""
         codigo_fornecedor = m_flex.group(2) or "" 
         descricao_bruta = m_flex.group(3).strip()
         
-        # Parse seguro de Decimais
-        try:
-            qtd = parse_br_float(m_flex.group(5))
-            preco_float = parse_br_float(m_flex.group(6))
-        except ValueError:
-            return None
+        qtd = parse_br_float(m_flex.group(5))
+        preco_float = parse_br_float(m_flex.group(6))
             
         m_desc = re.search(r"[A-Za-z].*$", descricao_bruta)
         if not m_desc: return None
@@ -262,7 +248,6 @@ def localizar_base(produto: str):
 def converter_para_final(produto: str, quantidade_original: float, unidade_encontrada: str):
     nome_base, info = localizar_base(produto)
 
-    # AUTO-INSERIR INTACTO
     if not info:
         grupo_estimado = classificador_inteligente(produto)
         return {
@@ -380,7 +365,6 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # Tabela de Preços e Códigos com Preço Decimal Exato
     df_precos = df[["codigo", "cod_forn", "produto_final", "preco"]].copy()
     df_precos = df_precos[df_precos["produto_final"] != ""]
     df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
@@ -414,13 +398,19 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
             try:
                 todos_itens.extend(processar_arquivo(f))
             except Exception as e:
-                st.error(f"Erro ao processar {f.name}: {e}")
+                st.error(f"Erro Crítico ao processar {f.name}: {e}")
 
     if not todos_itens:
         st.error("Nenhum item válido encontrado nos ficheiros.")
         st.stop()
 
     df = pd.DataFrame(todos_itens)
+    
+    # 🛠️ MODO DEPURADOR SEGURO
+    with st.expander("🛠️ MODO DEPURADOR (Clique aqui se algum item sumir ou o preço ficar zerado)"):
+        st.write("Abaixo está a radiografia exata de como o robô enxergou o seu pedido:")
+        st.dataframe(df[["arquivo", "produto_final", "qtd_original", "qtd_final", "preco", "observacao"]].sort_values(by="arquivo"), use_container_width=True)
+
     st.success("Tudo pronto! Ficheiros formatados no modelo exato do ERP.")
 
     c1, c2, c3 = st.columns(3)
