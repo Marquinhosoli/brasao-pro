@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Thoth + Novo Motor Anti-Falhas (Leitura Reversa)")
+st.write("Importação Thoth + Tabelas de Preços Independentes por Rede")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -144,7 +144,6 @@ configs = [
 # FUNÇÕES MATEMÁTICAS E DE LIMPEZA
 # =========================
 def parse_br_float(val_str: str) -> float:
-    """ Função matemática blindada com try-except contra quebras de OCR """
     try:
         v = str(val_str).strip()
         if not ('.' in v or ',' in v):
@@ -200,45 +199,31 @@ def identificar_loja(nome_arquivo: str):
     if "AVEN" in n: return "BRASAO", "4"
     return "BRASAO", "1"
 
-# =======================================================
-# NOVO MOTOR "SPLITTER" DE LEITURA (IMUNE A ERROS DE PDF)
-# =======================================================
 def parse_linha_produto(linha: str):
     l = linha.strip()
     if not l: return None
     
-    # Ignora cabeçalhos nativos do PDF
     if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR", "EMISSÃO", "CNPJ"]):
         return None
 
     tokens = l.split()
-    
-    # Uma linha válida precisa de pelo menos: 1 código + 1 nome + 4 colunas de números
-    if len(tokens) < 6: 
-        return None
+    if len(tokens) < 6: return None
+    if not all(re.search(r"\d", t) for t in tokens[-4:]): return None
         
-    # Os últimos 4 itens OBRIGATORIAMENTE têm que ser números (Quant, Qtde Emb, Pr Unit, Vl Total)
-    if not all(re.search(r"\d", t) for t in tokens[-4:]):
-        return None
-        
-    # Lendo de trás para frente (Imune a espaçamento errado no nome do produto!)
     vl_total_str = tokens[-1]
     pr_unit_str = tokens[-2]
     qtde_emb_str = tokens[-3]
     quant_str = tokens[-4]
     
-    # O que sobra para trás são os Códigos e o Nome do Produto
     restante = tokens[:-4]
     
     codigo_produto = ""
     codigo_fornecedor = ""
     
-    # O 1º item é sempre o Código Interno
     if re.match(r"^[\d.-]+$", restante[0]):
         codigo_produto = restante[0]
         restante = restante[1:]
         
-        # O 2º item PODE ser o Código do Fornecedor (se for um número)
         if len(restante) > 0 and re.match(r"^[\d.-]+$", restante[0]):
             codigo_fornecedor = restante[0]
             restante = restante[1:]
@@ -251,13 +236,11 @@ def parse_linha_produto(linha: str):
     m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
     unidade_encontrada = "cx" if m_un and m_un.group(1) in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"] else "outros"
     
-    # Remove somente as marcas do final para não poluir o nome
     for m in ["BRASAO FRUTA", "DE MARCHI", "FRUTAMINA"]:
         if produto.endswith(m):
             produto = produto[:-len(m)].strip()
             
     try:
-        # A quantidade final de caixas/pesos que queremos usar vem da "Qtde Emb" (o 3º de trás pra frente)
         qtd = parse_br_float(qtde_emb_str)
         preco_float = parse_br_float(pr_unit_str)
     except Exception:
@@ -383,6 +366,7 @@ def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
 def gerar_arquivos_excel(df):
     arquivos = {}
 
+    # 1. Matrizes Oficiais Thoth
     for cliente, grupo, nome_arquivo, colunas, sup_head, sub_head in configs:
         df_gerado = gerar_planilha_thoth(df, cliente, grupo, colunas, sub_head)
         
@@ -401,22 +385,31 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    df_precos = df[["codigo", "cod_forn", "produto_final", "preco"]].copy()
-    df_precos = df_precos[df_precos["produto_final"] != ""]
-    df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
-    
-    df_precos.rename(columns={
-        "codigo": "CÓDIGO", 
-        "cod_forn": "CÓD. FORNECEDOR",
-        "produto_final": "DESCRIÇÃO", 
-        "preco": "PREÇO UNITÁRIO (R$)"
-    }, inplace=True)
+    # 2. TABELAS DE PREÇOS INDEPENDENTES POR REDE (BRASAO, KROSS, CD)
+    for cliente in df["cliente"].unique():
+        if cliente == "OUTROS": continue
+        
+        df_cli = df[df["cliente"] == cliente]
+        df_precos = df_cli[["codigo", "cod_forn", "produto_final", "preco"]].copy()
+        df_precos = df_precos[df_precos["produto_final"] != ""]
+        
+        # Remove duplicatas sem misturar as redes e ordena de A a Z
+        df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
+        
+        df_precos.rename(columns={
+            "codigo": "CÓDIGO", 
+            "cod_forn": "CÓD. FORNECEDOR",
+            "produto_final": "DESCRIÇÃO", 
+            "preco": "PREÇO UNITÁRIO (R$)"
+        }, inplace=True)
 
-    if not df_precos.empty:
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_precos.to_excel(writer, index=False, sheet_name="Tabela de Preços")
-        arquivos["TABELA_PRECOS_SISTEMA.xlsx"] = output.getvalue()
+        if not df_precos.empty:
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                df_precos.to_excel(writer, index=False, sheet_name=f"Preços {cliente}")
+            
+            nome_tabela = f"TABELA_PRECOS_{cliente.replace(' ', '_')}.xlsx"
+            arquivos[nome_tabela] = output.getvalue()
 
     return arquivos
 
@@ -429,7 +422,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         st.stop()
 
     todos_itens = []
-    with st.spinner("A processar pedidos com o Novo Motor Anti-Falhas..."):
+    with st.spinner("A processar pedidos, validando OCR e preços..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
@@ -442,7 +435,6 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
 
     df = pd.DataFrame(todos_itens)
     
-    # 🛠️ DEPURADOR ATIVADO: Mostra exatamente o que o robô leu
     with st.expander("🛠️ DEPURADOR DE PEDIDOS (Clique aqui para ver os dados brutos lidos)"):
         st.write("Verifique se as quantidades e lojas estão corretas:")
         st.dataframe(df[["arquivo", "produto_final", "qtd_original", "qtd_final", "preco"]].sort_values(by="arquivo"), use_container_width=True)
@@ -463,7 +455,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
     cols = st.columns(2)
     for index, (nome_arquivo, dados_bytes) in enumerate(arquivos_gerados.items()):
         with cols[index % 2]:
-            if nome_arquivo == "TABELA_PRECOS_SISTEMA.xlsx":
+            if "TABELA_PRECOS" in nome_arquivo:
                 st.download_button(
                     label=f"💰 Baixar {nome_arquivo}",
                     data=dados_bytes,
