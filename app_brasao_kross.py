@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Completa Thoth + Tabela de Preços (Com Cód. Fornecedor)")
+st.write("Importação Thoth (Separação Rigorosa de Variações - Laranjas/Limões)")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -32,7 +32,7 @@ files = st.file_uploader(
 
 # =========================
 # BASE DE CONVERSÃO REVISADA
-# Gengibre corrigido para fator 13. Mangas corrigidas para 20.
+# Laranjas e Limões adicionados para evitar agrupamento genérico
 # =========================
 BASE_PRODUTOS = {
     # --- FRUTAS ---
@@ -52,9 +52,19 @@ BASE_PRODUTOS = {
     "KINKAN BANDEJA FRUTAMINA 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
     "KIWI IMPORTADO GRECIA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
     "KIWI NACIONAL DE MARCHI BANDEJA 600G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
+    
+    # --- LARANJAS E LIMÕES ESPECÍFICOS ---
     "LARANJA MAQUINA DE SUCO": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "LARANJA PERA": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "LARANJA LIMA": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "LARANJA BAHIA": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "LARANJA SELETA": {"por_caixa": 20, "grupo": "FRUTAS"},
     "LIMAO SICILIANO KG": {"por_caixa": 15, "grupo": "FRUTAS"},
+    "LIMAO SICILIANO": {"por_caixa": 15, "grupo": "FRUTAS"},
     "LIMAO TAHITI KG": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "LIMAO TAHITI": {"por_caixa": 20, "grupo": "FRUTAS"},
+    "LIMAO TAITI": {"por_caixa": 20, "grupo": "FRUTAS"},
+    
     "MACA FUJI CAT 1 KG": {"por_caixa": 18, "grupo": "FRUTAS"},
     "MAMAO FORMOSA KG": {"por_caixa": 15, "grupo": "FRUTAS"},
     "MAMAOZINHO PAPAIA UNIDADE": {"por_caixa": 18, "grupo": "FRUTAS"},
@@ -144,6 +154,16 @@ configs = [
 # =========================
 # FUNÇÕES CORE
 # =========================
+def normalizar_nome(texto: str) -> str:
+    if not texto: return ""
+    t = str(texto).upper().strip()
+    t = re.sub(r"\s+", " ", t) 
+    t = t.replace("Ç", "C").replace("Ã", "A").replace("Á", "A").replace("À", "A")
+    t = t.replace("É", "E").replace("Ê", "E").replace("Í", "I")
+    t = t.replace("Ó", "O").replace("Õ", "O").replace("Ô", "O").replace("Ú", "U")
+    t = t.replace("5/SEMENTE", "S/SEMENTE") 
+    return t
+
 def classificador_inteligente(nome_produto: str):
     n = nome_produto.upper()
     legumes_kw = ["TOMATE", "PIMENTAO", "PIMENTA", "JILO", "GENGIBRE", "ERVILHA", "BATATA", 
@@ -154,7 +174,6 @@ def classificador_inteligente(nome_produto: str):
     for l in legumes_kw:
         if l in n:
             return "LEGUMES"
-            
     return "FRUTAS"
 
 def identificar_loja(nome_arquivo: str):
@@ -176,11 +195,10 @@ def parse_linha_produto(linha: str):
     if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR"]):
         return None
 
-    # NOVIDADE: Agora a Expressão Regular captura também o "Cód. Fornecedor" se ele existir
     m_flex = re.search(r"^(?:(\d+)\s+)?(?:(\d+)\s+)?([A-Za-z].*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
     if m_flex:
         codigo_produto = m_flex.group(1) or ""
-        codigo_fornecedor = m_flex.group(2) or "" # Captura do Cod Forn
+        codigo_fornecedor = m_flex.group(2) or ""
         descricao_bruta = m_flex.group(3).strip()
         qtd_str = m_flex.group(5).replace(".", "").replace(",", ".")
         preco_unitario = m_flex.group(6)
@@ -193,7 +211,8 @@ def parse_linha_produto(linha: str):
         m_desc = re.search(r"[A-Za-z].*$", descricao_bruta)
         if not m_desc: return None
             
-        produto = m_desc.group(0).upper()
+        produto = normalizar_nome(m_desc.group(0))
+        
         m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
         unidade_encontrada = "cx" if m_un and m_un.group(1) in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"] else "outros"
         
@@ -201,17 +220,23 @@ def parse_linha_produto(linha: str):
             if produto.endswith(m):
                 produto = produto[:-len(m)].strip()
         
-        # Agora retorna 6 variáveis, incluindo o Código do Fornecedor
         return produto, qtd, unidade_encontrada, codigo_produto, codigo_fornecedor, preco_unitario
     return None
 
 def localizar_base(produto: str):
-    p = produto.upper()
+    p = normalizar_nome(produto)
+    
+    # 1. Tenta achar o nome exato
     if p in BASE_PRODUTOS:
         return p, BASE_PRODUTOS[p]
-    for chave in BASE_PRODUTOS:
-        if chave in p or p in chave:
+        
+    # 2. Busca Segura: Ordena a base do NOME MAIOR para o MENOR.
+    # Assim, se o PDF tiver "LIMAO TAHITI", ele acha "LIMAO TAHITI" antes de achar "LIMAO", 
+    # evitando que todas as variações se juntem num item genérico.
+    for chave in sorted(BASE_PRODUTOS.keys(), key=len, reverse=True):
+        if chave in p:
             return chave, BASE_PRODUTOS[chave]
+            
     return p, None
 
 def converter_para_final(produto: str, quantidade_original: float, unidade_encontrada: str):
@@ -284,7 +309,7 @@ def processar_arquivo(uploaded_file):
     return itens
 
 # =========================
-# GERAÇÃO THOTH EXCEL
+# GERAÇÃO THOTH EXCEL E TABELA KRILL
 # =========================
 def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
     df_filtro = df_itens[(df_itens["cliente"] == cliente) & (df_itens["grupo"] == grupo)]
@@ -335,13 +360,11 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # NOVA Tabela de Preços e Códigos com o Código do Fornecedor incluído
+    # Tabela de Preços com o CÓDIGO DO FORNECEDOR
     df_precos = df[["codigo", "cod_forn", "produto_final", "preco"]].copy()
-    # Filtra para evitar linhas sem identificação
     df_precos = df_precos[df_precos["produto_final"] != ""]
     df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
     
-    # Renomeação final das colunas
     df_precos.rename(columns={
         "codigo": "CÓDIGO", 
         "cod_forn": "CÓD. FORNECEDOR",
@@ -366,7 +389,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         st.stop()
 
     todos_itens = []
-    with st.spinner("A processar pedidos, a realizar Auto-Inserção e a construir ficheiros..."):
+    with st.spinner("A processar pedidos, a separar variações e a construir ficheiros..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
