@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Motor Anti-Falhas + Tabela Krill Inteligente (Código Garantido)")
+st.write("Motor Splitter + Limpeza Brutal de Códigos e Tabela Krill")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -228,7 +228,6 @@ def parse_linha_produto(linha: str):
     descricao_bruta = " ".join(restante)
     produto = normalizar_nome(descricao_bruta)
     
-    # Limpeza absoluta do nome: Arranca números perdidos no início do nome
     produto = re.sub(r"^[\W\d_]+", "", produto).strip()
     
     m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
@@ -323,7 +322,6 @@ def processar_arquivo(uploaded_file):
             conv["cliente"] = cliente
             conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
-            conv["codigo"] = codigo
             conv["cod_forn"] = cod_forn
             conv["preco"] = preco
             itens.append(conv)
@@ -383,25 +381,22 @@ def gerar_arquivos_excel(df):
             arquivos[nome_arquivo] = output.getvalue()
 
     # ========================================================
-    # A SOLUÇÃO DEFINITIVA DA TABELA DE PREÇOS (CÓDIGO GARANTIDO)
+    # TABELA DE PREÇOS: CÓD. FORNECEDOR (Sem o Plano B)
     # ========================================================
     for cliente in df["cliente"].unique():
         if cliente == "OUTROS": continue
         
         df_cli = df[df["cliente"] == cliente].copy()
         
-        # O "Plano B": Se não existir o Cod Forn, preenche usando o Código Interno
-        df_cli["codigo_final"] = df_cli.apply(
-            lambda x: x["cod_forn"] if x["cod_forn"] else x["codigo"], axis=1
-        )
-        
-        df_precos = df_cli[["codigo_final", "produto_final", "preco"]].copy()
+        # Removemos o Plano B! Agora ele pega apenas o cod_forn real.
+        # Se for vazio, a coluna continuará vazia.
+        df_precos = df_cli[["cod_forn", "produto_final", "preco"]].copy()
         df_precos = df_precos[df_precos["produto_final"] != ""]
         
         df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
         
         df_precos.rename(columns={
-            "codigo_final": "CÓD. FORNECEDOR",
+            "cod_forn": "CÓD. FORNECEDOR",
             "produto_final": "DESCRIÇÃO", 
             "preco": "PREÇO UNITÁRIO (R$)"
         }, inplace=True)
