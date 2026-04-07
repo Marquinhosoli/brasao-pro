@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Thoth + Tabelas de Preços Independentes por Rede")
+st.write("Motor Splitter (Anti-Falhas) + Tabelas de Preços Independentes")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -199,6 +199,9 @@ def identificar_loja(nome_arquivo: str):
     if "AVEN" in n: return "BRASAO", "4"
     return "BRASAO", "1"
 
+# =======================================================
+# MOTOR "SPLITTER" (Imune a espaçamento falho no PDF)
+# =======================================================
 def parse_linha_produto(linha: str):
     l = linha.strip()
     if not l: return None
@@ -216,7 +219,6 @@ def parse_linha_produto(linha: str):
     quant_str = tokens[-4]
     
     restante = tokens[:-4]
-    
     codigo_produto = ""
     codigo_fornecedor = ""
     
@@ -232,7 +234,6 @@ def parse_linha_produto(linha: str):
     if not descricao_bruta: return None
         
     produto = normalizar_nome(descricao_bruta)
-    
     m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
     unidade_encontrada = "cx" if m_un and m_un.group(1) in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"] else "outros"
     
@@ -333,7 +334,7 @@ def processar_arquivo(uploaded_file):
     return itens
 
 # =========================
-# GERAÇÃO THOTH EXCEL E PREÇOS
+# GERAÇÃO THOTH EXCEL E PREÇOS SEPARADOS
 # =========================
 def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
     df_filtro = df_itens[(df_itens["cliente"] == cliente) & (df_itens["grupo"] == grupo)]
@@ -393,7 +394,6 @@ def gerar_arquivos_excel(df):
         df_precos = df_cli[["codigo", "cod_forn", "produto_final", "preco"]].copy()
         df_precos = df_precos[df_precos["produto_final"] != ""]
         
-        # Remove duplicatas sem misturar as redes e ordena de A a Z
         df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
         
         df_precos.rename(columns={
@@ -406,7 +406,7 @@ def gerar_arquivos_excel(df):
         if not df_precos.empty:
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                df_precos.to_excel(writer, index=False, sheet_name=f"Preços {cliente}")
+                df_precos.to_excel(writer, index=False, sheet_name="Tabela de Preços")
             
             nome_tabela = f"TABELA_PRECOS_{cliente.replace(' ', '_')}.xlsx"
             arquivos[nome_tabela] = output.getvalue()
@@ -422,7 +422,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         st.stop()
 
     todos_itens = []
-    with st.spinner("A processar pedidos, validando OCR e preços..."):
+    with st.spinner("A processar pedidos com o Motor Splitter Anti-Falhas..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
