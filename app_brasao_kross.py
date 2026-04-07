@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Motor Splitter + Limpeza Brutal de Códigos e Tabela Krill")
+st.write("Motor Splitter + Tabela Krill Completa (CÓDIGO e CÓD. FORN)")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -322,7 +322,8 @@ def processar_arquivo(uploaded_file):
             conv["cliente"] = cliente
             conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
-            conv["cod_forn"] = cod_forn
+            conv["codigo"] = codigo # Mantém o Código Interno salvo!
+            conv["cod_forn"] = cod_forn # Mantém o Cod Fornecedor salvo!
             conv["preco"] = preco
             itens.append(conv)
 
@@ -381,21 +382,21 @@ def gerar_arquivos_excel(df):
             arquivos[nome_arquivo] = output.getvalue()
 
     # ========================================================
-    # TABELA DE PREÇOS: CÓD. FORNECEDOR (Sem o Plano B)
+    # TABELA DE PREÇOS: CÓDIGO + CÓD. FORNECEDOR (Sem esconder nada!)
     # ========================================================
     for cliente in df["cliente"].unique():
         if cliente == "OUTROS": continue
         
-        df_cli = df[df["cliente"] == cliente].copy()
+        df_cli = df[df["cliente"] == cliente]
         
-        # Removemos o Plano B! Agora ele pega apenas o cod_forn real.
-        # Se for vazio, a coluna continuará vazia.
-        df_precos = df_cli[["cod_forn", "produto_final", "preco"]].copy()
+        # Agora as DUAS colunas de código são exportadas pro Excel
+        df_precos = df_cli[["codigo", "cod_forn", "produto_final", "preco"]].copy()
         df_precos = df_precos[df_precos["produto_final"] != ""]
         
         df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
         
         df_precos.rename(columns={
+            "codigo": "CÓDIGO",
             "cod_forn": "CÓD. FORNECEDOR",
             "produto_final": "DESCRIÇÃO", 
             "preco": "PREÇO UNITÁRIO (R$)"
