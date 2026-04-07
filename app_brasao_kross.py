@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Motor Splitter (Anti-Falhas) + Tabelas de Preços Independentes")
+st.write("Motor Splitter (Anti-Falhas) + Tabelas de Preços (Apenas Cód. Fornecedor)")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -386,18 +386,19 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # 2. TABELAS DE PREÇOS INDEPENDENTES POR REDE (BRASAO, KROSS, CD)
+    # 2. TABELAS DE PREÇOS INDEPENDENTES POR REDE (Apenas Cód. Fornecedor)
     for cliente in df["cliente"].unique():
         if cliente == "OUTROS": continue
         
         df_cli = df[df["cliente"] == cliente]
-        df_precos = df_cli[["codigo", "cod_forn", "produto_final", "preco"]].copy()
+        
+        # Filtramos apenas as colunas desejadas (removendo "codigo" interno)
+        df_precos = df_cli[["cod_forn", "produto_final", "preco"]].copy()
         df_precos = df_precos[df_precos["produto_final"] != ""]
         
         df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
         
         df_precos.rename(columns={
-            "codigo": "CÓDIGO", 
             "cod_forn": "CÓD. FORNECEDOR",
             "produto_final": "DESCRIÇÃO", 
             "preco": "PREÇO UNITÁRIO (R$)"
