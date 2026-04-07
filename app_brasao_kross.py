@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Thoth (Separação Rigorosa de Variações - Laranjas/Limões)")
+st.write("Importação Thoth + Correção de Códigos Complexos e Tabela de Preços")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -32,7 +32,7 @@ files = st.file_uploader(
 
 # =========================
 # BASE DE CONVERSÃO REVISADA
-# Laranjas e Limões adicionados para evitar agrupamento genérico
+# Limões e Laranjas blindados contra variações de nome
 # =========================
 BASE_PRODUTOS = {
     # --- FRUTAS ---
@@ -53,12 +53,10 @@ BASE_PRODUTOS = {
     "KIWI IMPORTADO GRECIA KG": {"por_caixa": 10, "grupo": "FRUTAS"},
     "KIWI NACIONAL DE MARCHI BANDEJA 600G SHELF 15": {"por_caixa": 15, "grupo": "FRUTAS"},
     
-    # --- LARANJAS E LIMÕES ESPECÍFICOS ---
     "LARANJA MAQUINA DE SUCO": {"por_caixa": 20, "grupo": "FRUTAS"},
     "LARANJA PERA": {"por_caixa": 20, "grupo": "FRUTAS"},
     "LARANJA LIMA": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "LARANJA BAHIA": {"por_caixa": 20, "grupo": "FRUTAS"},
-    "LARANJA SELETA": {"por_caixa": 20, "grupo": "FRUTAS"},
+    
     "LIMAO SICILIANO KG": {"por_caixa": 15, "grupo": "FRUTAS"},
     "LIMAO SICILIANO": {"por_caixa": 15, "grupo": "FRUTAS"},
     "LIMAO TAHITI KG": {"por_caixa": 20, "grupo": "FRUTAS"},
@@ -161,7 +159,11 @@ def normalizar_nome(texto: str) -> str:
     t = t.replace("Ç", "C").replace("Ã", "A").replace("Á", "A").replace("À", "A")
     t = t.replace("É", "E").replace("Ê", "E").replace("Í", "I")
     t = t.replace("Ó", "O").replace("Õ", "O").replace("Ô", "O").replace("Ú", "U")
-    t = t.replace("5/SEMENTE", "S/SEMENTE") 
+    t = t.replace("SHELL", "SHELF")
+    t = t.replace("PESSEGA", "PESSEGO")
+    t = t.replace("CONSENA", "CONSERVA")
+    t = re.sub(r"\bEG\b", "KG", t)
+    t = t.replace("5/SEMENTE", "S/SEMENTE")
     return t
 
 def classificador_inteligente(nome_produto: str):
@@ -170,7 +172,6 @@ def classificador_inteligente(nome_produto: str):
                   "CENOURA", "CEBOLA", "ALHO", "ALFACE", "REPOLHO", "ABOBORA", "PEPINO", 
                   "BERINJELA", "CHUCHU", "QUIABO", "VAGEM", "MILHO", "SALSA", "COENTRO", 
                   "ALECRIM", "TOMILHO", "MANDIOCA", "INHAME", "HORTELA", "LOURO", "MANJERICAO", "CARA"]
-    
     for l in legumes_kw:
         if l in n:
             return "LEGUMES"
@@ -182,12 +183,10 @@ def identificar_loja(nome_arquivo: str):
         if "XAXIM" in n: return "KROSS", "2"
         return "KROSS", "1"
     if "CD" in n: return "BRASAO CD", "1"
-    
     if "FERN" in n: return "BRASAO", "1" 
     if "JARD" in n: return "BRASAO", "2"
     if "XAXIM" in n: return "BRASAO", "3"
     if "AVEN" in n: return "BRASAO", "4"
-    
     return "BRASAO", "1"
 
 def parse_linha_produto(linha: str):
@@ -195,16 +194,19 @@ def parse_linha_produto(linha: str):
     if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR"]):
         return None
 
-    m_flex = re.search(r"^(?:(\d+)\s+)?(?:(\d+)\s+)?([A-Za-z].*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
+    # NOVIDADE DA REGEX: Agora aceita pontos e traços no Código do Fornecedor (ex: 347.909)
+    m_flex = re.search(r"^(?:([\d.-]+)\s+)?(?:([\d.-]+)\s+)?([A-Za-z].*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
+    
     if m_flex:
         codigo_produto = m_flex.group(1) or ""
-        codigo_fornecedor = m_flex.group(2) or ""
+        codigo_fornecedor = m_flex.group(2) or "" # Agora captura o Limão Siciliano com "347.909"
         descricao_bruta = m_flex.group(3).strip()
         qtd_str = m_flex.group(5).replace(".", "").replace(",", ".")
-        preco_unitario = m_flex.group(6)
+        preco_unitario_str = m_flex.group(6).replace(".", "").replace(",", ".")
         
         try:
             qtd = float(qtd_str)
+            preco_float = float(preco_unitario_str)
         except ValueError:
             return None
             
@@ -212,7 +214,6 @@ def parse_linha_produto(linha: str):
         if not m_desc: return None
             
         produto = normalizar_nome(m_desc.group(0))
-        
         m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
         unidade_encontrada = "cx" if m_un and m_un.group(1) in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"] else "outros"
         
@@ -220,21 +221,21 @@ def parse_linha_produto(linha: str):
             if produto.endswith(m):
                 produto = produto[:-len(m)].strip()
         
-        return produto, qtd, unidade_encontrada, codigo_produto, codigo_fornecedor, preco_unitario
+        return produto, qtd, unidade_encontrada, codigo_produto, codigo_fornecedor, preco_float
     return None
 
 def localizar_base(produto: str):
     p = normalizar_nome(produto)
+    p_clean = p.replace("DE MARCHI", "DEMARCHI")
     
-    # 1. Tenta achar o nome exato
-    if p in BASE_PRODUTOS:
-        return p, BASE_PRODUTOS[p]
-        
-    # 2. Busca Segura: Ordena a base do NOME MAIOR para o MENOR.
-    # Assim, se o PDF tiver "LIMAO TAHITI", ele acha "LIMAO TAHITI" antes de achar "LIMAO", 
-    # evitando que todas as variações se juntem num item genérico.
+    for chave in BASE_PRODUTOS.keys():
+        c_clean = chave.replace("DE MARCHI", "DEMARCHI")
+        if p_clean == c_clean:
+            return chave, BASE_PRODUTOS[chave]
+            
     for chave in sorted(BASE_PRODUTOS.keys(), key=len, reverse=True):
-        if chave in p:
+        c_clean = chave.replace("DE MARCHI", "DEMARCHI")
+        if c_clean in p_clean or p_clean in c_clean:
             return chave, BASE_PRODUTOS[chave]
             
     return p, None
@@ -242,7 +243,6 @@ def localizar_base(produto: str):
 def converter_para_final(produto: str, quantidade_original: float, unidade_encontrada: str):
     nome_base, info = localizar_base(produto)
 
-    # AUTO-INSERIR INTACTO
     if not info:
         grupo_estimado = classificador_inteligente(produto)
         return {
@@ -309,7 +309,7 @@ def processar_arquivo(uploaded_file):
     return itens
 
 # =========================
-# GERAÇÃO THOTH EXCEL E TABELA KRILL
+# GERAÇÃO THOTH EXCEL E TABELA PREÇOS
 # =========================
 def gerar_planilha_thoth(df_itens, cliente, grupo, colunas_numericas, sub_head):
     df_filtro = df_itens[(df_itens["cliente"] == cliente) & (df_itens["grupo"] == grupo)]
@@ -360,7 +360,6 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # Tabela de Preços com o CÓDIGO DO FORNECEDOR
     df_precos = df[["codigo", "cod_forn", "produto_final", "preco"]].copy()
     df_precos = df_precos[df_precos["produto_final"] != ""]
     df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
@@ -389,7 +388,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         st.stop()
 
     todos_itens = []
-    with st.spinner("A processar pedidos, a separar variações e a construir ficheiros..."):
+    with st.spinner("A processar pedidos, corrigindo nomes e códigos..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
