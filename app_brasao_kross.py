@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Importação Thoth + Modo Depurador e Prevenção de Falhas")
+st.write("Importação Thoth + Novo Motor Anti-Falhas (Leitura Reversa)")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -159,7 +159,7 @@ def parse_br_float(val_str: str) -> float:
         
         return float(f"{int_part}.{dec_part}")
     except Exception:
-        return 0.0 # Se o PDF enviar lixo puro, devolve zero para não quebrar a importação
+        return 0.0
 
 def normalizar_nome(texto: str) -> str:
     if not texto: return ""
@@ -200,34 +200,70 @@ def identificar_loja(nome_arquivo: str):
     if "AVEN" in n: return "BRASAO", "4"
     return "BRASAO", "1"
 
+# =======================================================
+# NOVO MOTOR "SPLITTER" DE LEITURA (IMUNE A ERROS DE PDF)
+# =======================================================
 def parse_linha_produto(linha: str):
     l = linha.strip()
-    if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR"]):
+    if not l: return None
+    
+    # Ignora cabeçalhos nativos do PDF
+    if any(x in l.upper() for x in ["TOTAL", "PESO", "FRETE", "VALOR", "EMISSÃO", "CNPJ"]):
         return None
 
-    m_flex = re.search(r"^(?:([\d.-]+)\s+)?(?:([\d.-]+)\s+)?([A-Za-z].*?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$", l)
-    if m_flex:
-        codigo_produto = m_flex.group(1) or ""
-        codigo_fornecedor = m_flex.group(2) or "" 
-        descricao_bruta = m_flex.group(3).strip()
+    tokens = l.split()
+    
+    # Uma linha válida precisa de pelo menos: 1 código + 1 nome + 4 colunas de números
+    if len(tokens) < 6: 
+        return None
         
-        qtd = parse_br_float(m_flex.group(5))
-        preco_float = parse_br_float(m_flex.group(6))
+    # Os últimos 4 itens OBRIGATORIAMENTE têm que ser números (Quant, Qtde Emb, Pr Unit, Vl Total)
+    if not all(re.search(r"\d", t) for t in tokens[-4:]):
+        return None
+        
+    # Lendo de trás para frente (Imune a espaçamento errado no nome do produto!)
+    vl_total_str = tokens[-1]
+    pr_unit_str = tokens[-2]
+    qtde_emb_str = tokens[-3]
+    quant_str = tokens[-4]
+    
+    # O que sobra para trás são os Códigos e o Nome do Produto
+    restante = tokens[:-4]
+    
+    codigo_produto = ""
+    codigo_fornecedor = ""
+    
+    # O 1º item é sempre o Código Interno
+    if re.match(r"^[\d.-]+$", restante[0]):
+        codigo_produto = restante[0]
+        restante = restante[1:]
+        
+        # O 2º item PODE ser o Código do Fornecedor (se for um número)
+        if len(restante) > 0 and re.match(r"^[\d.-]+$", restante[0]):
+            codigo_fornecedor = restante[0]
+            restante = restante[1:]
             
-        m_desc = re.search(r"[A-Za-z].*$", descricao_bruta)
-        if not m_desc: return None
+    descricao_bruta = " ".join(restante)
+    if not descricao_bruta: return None
+        
+    produto = normalizar_nome(descricao_bruta)
+    
+    m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
+    unidade_encontrada = "cx" if m_un and m_un.group(1) in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"] else "outros"
+    
+    # Remove somente as marcas do final para não poluir o nome
+    for m in ["BRASAO FRUTA", "DE MARCHI", "FRUTAMINA"]:
+        if produto.endswith(m):
+            produto = produto[:-len(m)].strip()
             
-        produto = normalizar_nome(m_desc.group(0))
+    try:
+        # A quantidade final de caixas/pesos que queremos usar vem da "Qtde Emb" (o 3º de trás pra frente)
+        qtd = parse_br_float(qtde_emb_str)
+        preco_float = parse_br_float(pr_unit_str)
+    except Exception:
+        return None
         
-        m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
-        unidade_encontrada = "cx" if m_un and m_un.group(1) in ["CX", "CXS", "CAIXA", "CAIXAS", "VOL", "VOLUME", "VOLUMES"] else "outros"
-        
-        for m in ["BRASAO FRUTA", "DE MARCHI", "FRUTAMINA"]:
-            if produto.endswith(m):
-                produto = produto[:-len(m)].strip()
-        
-        return produto, qtd, unidade_encontrada, codigo_produto, codigo_fornecedor, preco_float
-    return None
+    return produto, qtd, unidade_encontrada, codigo_produto, codigo_fornecedor, preco_float
 
 def localizar_base(produto: str):
     p = normalizar_nome(produto)
@@ -393,7 +429,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         st.stop()
 
     todos_itens = []
-    with st.spinner("A processar pedidos, validando OCR e preços..."):
+    with st.spinner("A processar pedidos com o Novo Motor Anti-Falhas..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
@@ -406,10 +442,10 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
 
     df = pd.DataFrame(todos_itens)
     
-    # 🛠️ MODO DEPURADOR SEGURO
-    with st.expander("🛠️ MODO DEPURADOR (Clique aqui se algum item sumir ou o preço ficar zerado)"):
-        st.write("Abaixo está a radiografia exata de como o robô enxergou o seu pedido:")
-        st.dataframe(df[["arquivo", "produto_final", "qtd_original", "qtd_final", "preco", "observacao"]].sort_values(by="arquivo"), use_container_width=True)
+    # 🛠️ DEPURADOR ATIVADO: Mostra exatamente o que o robô leu
+    with st.expander("🛠️ DEPURADOR DE PEDIDOS (Clique aqui para ver os dados brutos lidos)"):
+        st.write("Verifique se as quantidades e lojas estão corretas:")
+        st.dataframe(df[["arquivo", "produto_final", "qtd_original", "qtd_final", "preco"]].sort_values(by="arquivo"), use_container_width=True)
 
     st.success("Tudo pronto! Ficheiros formatados no modelo exato do ERP.")
 
