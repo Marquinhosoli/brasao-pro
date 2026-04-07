@@ -22,7 +22,7 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 """, unsafe_allow_html=True)
 
 st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Motor Splitter + Tabela Krill Completa (CÓDIGO e CÓD. FORN)")
+st.write("Motor Splitter + Banco de Códigos do Fornecedor Integrado")
 
 files = st.file_uploader(
     "Envie os PDFs de pedidos",
@@ -31,10 +31,60 @@ files = st.file_uploader(
 )
 
 # =========================
+# BANCO DE CÓDIGOS DE FORNECEDOR (Fornecido por você!)
+# =========================
+CODIGOS_FORNECEDOR = {
+    "ABACATE KG": "1",
+    "ASPARGO IMPORTADO PERU UNIDADE": "37,899",
+    "BATATA CARA KG": "72",
+    "CARA KG": "72",
+    "BATATA INHAME KG": "143",
+    "INHAME KG": "143",
+    "BATATA SALSA KG": "1874",
+    "BATATINHA BOLINHA KG": "55",
+    "BATATA BOLINHA KG": "55",
+    "BERINJELA KG": "56",
+    "CEBOLA CONSERVA KG": "80",
+    "CEBOLA ROXA KG": "81",
+    "CENOURA KG": "85", # Corrigido o erro de OCR "Chou ou Ra"
+    "CHUCHU KG": "94",
+    "FRAMBOESA FRUTA 120G SHELF 15": "907",
+    "GOIABA NACIONAL VERMELHA KG": "139",
+    "GRAVIOLA KG": "141",
+    "JATOBA FRUTA KG": "147",
+    "JILO DE MARCHI BDJ 300G": "149,945",
+    "MAMAO FORMOSA KG": "175",
+    "MAMAOZINHO PAPAIA UNIDADE": "177",
+    "MANGA ESPADA KG": "185",
+    "MANGA PALMER KG": "188",
+    "MELAO AMARELO TURMA DA MONICA KG": "416",
+    "MELAO CHARANTEAIS KG": "352",
+    "MILHO VERDE ESPIGA DE MARCHI BDJ 700G SHELF 10": "383",
+    "PEPINO JAPONES KG": "237",
+    "PIMENTA CHEIRO DOCE KG": "1411",
+    "PIMENTA JALAPENO KG": "989",
+    "PIMENTA VERMELHA KG": "1410,965",
+    "PIMENTAO AMARELO BANDEJA": "259",
+    "PIMENTAO VERMELHO BANDEJA": "262",
+    "PINHA FRUTA DO CONDE KG": "263",
+    "QUIABO DE MARCHI BDJ 300G": "268,960",
+    "ROMA IMPORTADO ESPANHA KG": "919",
+    "UVA BRASIL DEMARCHI BDJ 500G": "394",
+    "UVA ITALIA DEMARCHI BDJ 500G": "378",
+    "UVA RED GLOBE BAND 500G": "399",
+    "UVA RUBI DEMARCHI BDJ 500G SHELF 21": "379",
+    "LIMAO SICILIANO KG": "347,909",
+    "LIMAO TAHITI KG": "161",
+    "LARANJA MAQUINA DE SUCO": "156",
+    "TOMATE GRAPE DEMARCHI 180G SHELF 10": "959",
+    "TOMILHO MACO": "864",
+    "UVA THOMPSON S/SEMENTE DEMARCHI BDJ 500G": "403"
+}
+
+# =========================
 # BASE DE CONVERSÃO REVISADA
 # =========================
 BASE_PRODUTOS = {
-    # --- FRUTAS ---
     "ABACATE KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "ABACATE AVOCADO MINI KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "ABACAXI PEROLA UND": {"por_caixa": 1, "grupo": "FRUTAS"},
@@ -76,7 +126,6 @@ BASE_PRODUTOS = {
     "UVA CRINSOM S/SEMENTE DEMARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
     "UVA VITORIA DE MARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
 
-    # --- LEGUMES ---
     "ABOBORA PESCOCO KG": {"por_caixa": 1, "grupo": "LEGUMES"}, 
     "ALECRIM MACO": {"por_caixa": 4, "grupo": "LEGUMES"},
     "ALHO PORO UND": {"por_caixa": 12, "grupo": "LEGUMES"},
@@ -208,26 +257,19 @@ def parse_linha_produto(linha: str):
     if len(tokens) < 6: return None
     if not all(re.search(r"\d", t) for t in tokens[-4:]): return None
         
-    vl_total_str = tokens[-1]
     pr_unit_str = tokens[-2]
     qtde_emb_str = tokens[-3]
-    quant_str = tokens[-4]
     
     restante = tokens[:-4]
-    codigo_produto = ""
-    codigo_fornecedor = ""
     
+    # Extrai o lixo numérico do começo (O robô lê e descarta)
     while len(restante) > 0 and re.match(r"^[\d.-]+$", restante[0]):
-        if not codigo_produto:
-            codigo_produto = restante.pop(0)
-        elif not codigo_fornecedor:
-            codigo_fornecedor = restante.pop(0)
-        else:
-            restante.pop(0)
+        restante.pop(0)
             
     descricao_bruta = " ".join(restante)
     produto = normalizar_nome(descricao_bruta)
     
+    # Laser Anti-Lixo: Limpa números remanescentes grudados no nome
     produto = re.sub(r"^[\W\d_]+", "", produto).strip()
     
     m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
@@ -243,7 +285,7 @@ def parse_linha_produto(linha: str):
     except Exception:
         return None
         
-    return produto, qtd, unidade_encontrada, codigo_produto, codigo_fornecedor, preco_float
+    return produto, qtd, unidade_encontrada, preco_float
 
 def localizar_base(produto: str):
     p = normalizar_nome(produto)
@@ -317,14 +359,18 @@ def processar_arquivo(uploaded_file):
             
         item = parse_linha_produto(limpa)
         if item:
-            produto, qtd, unid, codigo, cod_forn, preco = item
+            produto, qtd, unid, preco = item
             conv = converter_para_final(produto, qtd, unid)
             conv["cliente"] = cliente
             conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
-            conv["codigo"] = codigo # Mantém o Código Interno salvo!
-            conv["cod_forn"] = cod_forn # Mantém o Cod Fornecedor salvo!
             conv["preco"] = preco
+            
+            # INTEGRAÇÃO DO BANCO DE DADOS AQUI: Puxa o Cod Fornecedor oficial
+            nome_oficial = conv["produto_final"]
+            cod_oficial = CODIGOS_FORNECEDOR.get(nome_oficial, "") 
+            conv["cod_forn"] = cod_oficial
+            
             itens.append(conv)
 
     return itens
@@ -382,21 +428,18 @@ def gerar_arquivos_excel(df):
             arquivos[nome_arquivo] = output.getvalue()
 
     # ========================================================
-    # TABELA DE PREÇOS: CÓDIGO + CÓD. FORNECEDOR (Sem esconder nada!)
+    # TABELA DE PREÇOS: CÓD. FORNECEDOR (USANDO O SEU BANCO DE DADOS!)
     # ========================================================
     for cliente in df["cliente"].unique():
         if cliente == "OUTROS": continue
         
-        df_cli = df[df["cliente"] == cliente]
+        df_cli = df[df["cliente"] == cliente].copy()
         
-        # Agora as DUAS colunas de código são exportadas pro Excel
-        df_precos = df_cli[["codigo", "cod_forn", "produto_final", "preco"]].copy()
+        df_precos = df_cli[["cod_forn", "produto_final", "preco"]].copy()
         df_precos = df_precos[df_precos["produto_final"] != ""]
-        
         df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
         
         df_precos.rename(columns={
-            "codigo": "CÓDIGO",
             "cod_forn": "CÓD. FORNECEDOR",
             "produto_final": "DESCRIÇÃO", 
             "preco": "PREÇO UNITÁRIO (R$)"
@@ -421,7 +464,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         st.stop()
 
     todos_itens = []
-    with st.spinner("Extraindo Códigos e Validando Matrizes..."):
+    with st.spinner("Extraindo PDFs e aplicando o Banco de Códigos Oficial..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
