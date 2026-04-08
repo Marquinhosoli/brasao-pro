@@ -5,6 +5,15 @@ import re
 import pandas as pd
 import pdfplumber
 import streamlit as st
+from PIL import Image
+import pytesseract
+
+# ==============================================================================
+# ⚠️ CONFIGURAÇÃO DO TESSERACT (Para Windows)
+# Se estiver a usar Windows, retire o "#" da linha abaixo e certifique-se de que 
+# o caminho corresponde ao local onde instalou o Tesseract OCR.
+# ==============================================================================
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 st.set_page_config(page_title="THOTH PRO FINAL", layout="wide")
 
@@ -21,70 +30,21 @@ h1 { font-weight: 800 !important; letter-spacing: -0.5px; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🚀 THOTH PRO FINAL (PDF + EXCEL)")
-st.write("Motor Splitter + Banco de Códigos do Fornecedor Integrado")
+st.title("🚀 THOTH PRO FINAL (PDF + IMAGEM + EXCEL)")
+st.write("Motor Splitter + OCR Integrado + Tabela Krill Completa")
 
+# Agora aceita imagens!
 files = st.file_uploader(
-    "Envie os PDFs de pedidos",
-    type=["pdf", "xlsx", "xls"],
+    "Envie os PDFs ou Imagens (PNG, JPG) de pedidos",
+    type=["pdf", "xlsx", "xls", "png", "jpg", "jpeg"],
     accept_multiple_files=True
 )
-
-# =========================
-# BANCO DE CÓDIGOS DE FORNECEDOR (Fornecido por você!)
-# =========================
-CODIGOS_FORNECEDOR = {
-    "ABACATE KG": "1",
-    "ASPARGO IMPORTADO PERU UNIDADE": "37,899",
-    "BATATA CARA KG": "72",
-    "CARA KG": "72",
-    "BATATA INHAME KG": "143",
-    "INHAME KG": "143",
-    "BATATA SALSA KG": "1874",
-    "BATATINHA BOLINHA KG": "55",
-    "BATATA BOLINHA KG": "55",
-    "BERINJELA KG": "56",
-    "CEBOLA CONSERVA KG": "80",
-    "CEBOLA ROXA KG": "81",
-    "CENOURA KG": "85", # Corrigido o erro de OCR "Chou ou Ra"
-    "CHUCHU KG": "94",
-    "FRAMBOESA FRUTA 120G SHELF 15": "907",
-    "GOIABA NACIONAL VERMELHA KG": "139",
-    "GRAVIOLA KG": "141",
-    "JATOBA FRUTA KG": "147",
-    "JILO DE MARCHI BDJ 300G": "149,945",
-    "MAMAO FORMOSA KG": "175",
-    "MAMAOZINHO PAPAIA UNIDADE": "177",
-    "MANGA ESPADA KG": "185",
-    "MANGA PALMER KG": "188",
-    "MELAO AMARELO TURMA DA MONICA KG": "416",
-    "MELAO CHARANTEAIS KG": "352",
-    "MILHO VERDE ESPIGA DE MARCHI BDJ 700G SHELF 10": "383",
-    "PEPINO JAPONES KG": "237",
-    "PIMENTA CHEIRO DOCE KG": "1411",
-    "PIMENTA JALAPENO KG": "989",
-    "PIMENTA VERMELHA KG": "1410,965",
-    "PIMENTAO AMARELO BANDEJA": "259",
-    "PIMENTAO VERMELHO BANDEJA": "262",
-    "PINHA FRUTA DO CONDE KG": "263",
-    "QUIABO DE MARCHI BDJ 300G": "268,960",
-    "ROMA IMPORTADO ESPANHA KG": "919",
-    "UVA BRASIL DEMARCHI BDJ 500G": "394",
-    "UVA ITALIA DEMARCHI BDJ 500G": "378",
-    "UVA RED GLOBE BAND 500G": "399",
-    "UVA RUBI DEMARCHI BDJ 500G SHELF 21": "379",
-    "LIMAO SICILIANO KG": "347,909",
-    "LIMAO TAHITI KG": "161",
-    "LARANJA MAQUINA DE SUCO": "156",
-    "TOMATE GRAPE DEMARCHI 180G SHELF 10": "959",
-    "TOMILHO MACO": "864",
-    "UVA THOMPSON S/SEMENTE DEMARCHI BDJ 500G": "403"
-}
 
 # =========================
 # BASE DE CONVERSÃO REVISADA
 # =========================
 BASE_PRODUTOS = {
+    # --- FRUTAS ---
     "ABACATE KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "ABACATE AVOCADO MINI KG": {"por_caixa": 20, "grupo": "FRUTAS"},
     "ABACAXI PEROLA UND": {"por_caixa": 1, "grupo": "FRUTAS"},
@@ -126,6 +86,7 @@ BASE_PRODUTOS = {
     "UVA CRINSOM S/SEMENTE DEMARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
     "UVA VITORIA DE MARCHI BDJ 500G": {"por_caixa": 10, "grupo": "FRUTAS"},
 
+    # --- LEGUMES ---
     "ABOBORA PESCOCO KG": {"por_caixa": 1, "grupo": "LEGUMES"}, 
     "ALECRIM MACO": {"por_caixa": 4, "grupo": "LEGUMES"},
     "ALHO PORO UND": {"por_caixa": 12, "grupo": "LEGUMES"},
@@ -257,19 +218,26 @@ def parse_linha_produto(linha: str):
     if len(tokens) < 6: return None
     if not all(re.search(r"\d", t) for t in tokens[-4:]): return None
         
+    vl_total_str = tokens[-1]
     pr_unit_str = tokens[-2]
     qtde_emb_str = tokens[-3]
+    quant_str = tokens[-4]
     
     restante = tokens[:-4]
+    codigo_produto = ""
+    codigo_fornecedor = ""
     
-    # Extrai o lixo numérico do começo (O robô lê e descarta)
     while len(restante) > 0 and re.match(r"^[\d.-]+$", restante[0]):
-        restante.pop(0)
+        if not codigo_produto:
+            codigo_produto = restante.pop(0)
+        elif not codigo_fornecedor:
+            codigo_fornecedor = restante.pop(0)
+        else:
+            restante.pop(0)
             
     descricao_bruta = " ".join(restante)
     produto = normalizar_nome(descricao_bruta)
     
-    # Laser Anti-Lixo: Limpa números remanescentes grudados no nome
     produto = re.sub(r"^[\W\d_]+", "", produto).strip()
     
     m_un = re.search(r"\b(KG|KGS|QUILO|QUILOS|UN|UND|UNID|UNIDADE|UNIDADES|BDJ|BANDEJA|BANDEJAS|CX|CXS|CAIXA|CAIXAS|VOL|VOLUME|VOLUMES|MACO|MACOS)\b", produto)
@@ -285,7 +253,7 @@ def parse_linha_produto(linha: str):
     except Exception:
         return None
         
-    return produto, qtd, unidade_encontrada, preco_float
+    return produto, qtd, unidade_encontrada, codigo_produto, codigo_fornecedor, preco_float
 
 def localizar_base(produto: str):
     p = normalizar_nome(produto)
@@ -337,17 +305,35 @@ def converter_para_final(produto: str, quantidade_original: float, unidade_encon
         "observacao": obs
     }
 
+# =======================================================
+# EXTRAÇÃO MISTA: Lê PDF Nativo ou usa OCR para Imagens
+# =======================================================
+def extrair_linhas(uploaded_file):
+    nome = uploaded_file.name.lower()
+    linhas_texto = []
+
+    if nome.endswith(".pdf"):
+        with pdfplumber.open(uploaded_file) as pdf:
+            for page in pdf.pages:
+                t = page.extract_text() or ""
+                if t.strip():
+                    linhas_texto.extend(t.splitlines())
+    elif nome.endswith((".png", ".jpg", ".jpeg")):
+        try:
+            img = Image.open(uploaded_file)
+            # Lê o texto da imagem em português
+            texto = pytesseract.image_to_string(img, lang='por')
+            linhas_texto.extend(texto.splitlines())
+        except Exception as e:
+            st.error(f"Erro ao ler a imagem {nome}. Tem a certeza de que o Tesseract OCR está instalado? Detalhe: {e}")
+    
+    return linhas_texto
+
 def processar_arquivo(uploaded_file):
     nome = uploaded_file.name
     cliente, loja_num = identificar_loja(nome)
 
-    texto = []
-    with pdfplumber.open(uploaded_file) as pdf:
-        for page in pdf.pages:
-            t = page.extract_text() or ""
-            if t.strip(): texto.append(t)
-            
-    linhas_texto = "\n".join(texto).splitlines()
+    linhas_texto = extrair_linhas(uploaded_file)
 
     itens = []
     for l in linhas_texto:
@@ -359,18 +345,14 @@ def processar_arquivo(uploaded_file):
             
         item = parse_linha_produto(limpa)
         if item:
-            produto, qtd, unid, preco = item
+            produto, qtd, unid, codigo, cod_forn, preco = item
             conv = converter_para_final(produto, qtd, unid)
             conv["cliente"] = cliente
             conv["loja_cod"] = loja_num
             conv["arquivo"] = nome
+            conv["codigo"] = codigo
+            conv["cod_forn"] = cod_forn
             conv["preco"] = preco
-            
-            # INTEGRAÇÃO DO BANCO DE DADOS AQUI: Puxa o Cod Fornecedor oficial
-            nome_oficial = conv["produto_final"]
-            cod_oficial = CODIGOS_FORNECEDOR.get(nome_oficial, "") 
-            conv["cod_forn"] = cod_oficial
-            
             itens.append(conv)
 
     return itens
@@ -427,19 +409,18 @@ def gerar_arquivos_excel(df):
 
             arquivos[nome_arquivo] = output.getvalue()
 
-    # ========================================================
-    # TABELA DE PREÇOS: CÓD. FORNECEDOR (USANDO O SEU BANCO DE DADOS!)
-    # ========================================================
     for cliente in df["cliente"].unique():
         if cliente == "OUTROS": continue
         
-        df_cli = df[df["cliente"] == cliente].copy()
+        df_cli = df[df["cliente"] == cliente]
         
-        df_precos = df_cli[["cod_forn", "produto_final", "preco"]].copy()
+        df_precos = df_cli[["codigo", "cod_forn", "produto_final", "preco"]].copy()
         df_precos = df_precos[df_precos["produto_final"] != ""]
+        
         df_precos = df_precos.drop_duplicates(subset=["produto_final"]).sort_values(by="produto_final")
         
         df_precos.rename(columns={
+            "codigo": "CÓDIGO",
             "cod_forn": "CÓD. FORNECEDOR",
             "produto_final": "DESCRIÇÃO", 
             "preco": "PREÇO UNITÁRIO (R$)"
@@ -460,11 +441,11 @@ def gerar_arquivos_excel(df):
 # =========================
 if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=False):
     if not files:
-        st.warning("Envie pelo menos um arquivo de pedido.")
+        st.warning("Envie pelo menos um ficheiro de pedido ou imagem.")
         st.stop()
 
     todos_itens = []
-    with st.spinner("Extraindo PDFs e aplicando o Banco de Códigos Oficial..."):
+    with st.spinner("Extraindo Códigos e Lendo Imagens/PDFs..."):
         for f in files:
             try:
                 todos_itens.extend(processar_arquivo(f))
@@ -484,7 +465,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
     st.success("Tudo pronto! Ficheiros formatados no modelo exato do ERP.")
 
     c1, c2, c3 = st.columns(3)
-    c1.markdown(f'<div class="result-card"><b>Arquivos Lidos</b><br>{len(files)}</div>', unsafe_allow_html=True)
+    c1.markdown(f'<div class="result-card"><b>Ficheiros Lidos</b><br>{len(files)}</div>', unsafe_allow_html=True)
     
     qtd_convertidos = len(df[df["observacao"] != "NOVO - AUTO INSERIDO"])
     c2.markdown(f'<div class="result-card"><b>Itens Base</b><br>{qtd_convertidos}</div>', unsafe_allow_html=True)
@@ -499,7 +480,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
         with cols[index % 2]:
             if "TABELA_PRECOS" in nome_arquivo:
                 st.download_button(
-                    label=f"💰 Baixar {nome_arquivo}",
+                    label=f"💰 Descarregar {nome_arquivo}",
                     data=dados_bytes,
                     file_name=nome_arquivo,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -508,7 +489,7 @@ if st.button("🔥 PROCESSAR PEDIDOS E GERAR MATRIZ THOTH", use_container_width=
                 )
             else:
                 st.download_button(
-                    label=f"Baixar {nome_arquivo}",
+                    label=f"Descarregar {nome_arquivo}",
                     data=dados_bytes,
                     file_name=nome_arquivo,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
